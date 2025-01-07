@@ -295,6 +295,12 @@ partial class Creature
     public void UpdatePosition(bool netsend = true)
     {
         // stopwatch.Restart();
+        if (PhysicsObj is null)
+        {
+            _log.Error("Monster_Navigation.UpdatePosition() - PhysicsObj is null for {Monster}", this.Name);
+            return;
+        }
+
         PhysicsObj.update_object();
         // ServerPerformanceMonitor.AddToCumulativeEvent(
         //     ServerPerformanceMonitor.CumulativeEventHistoryType.Monster_Navigation_UpdatePosition_PUO,
