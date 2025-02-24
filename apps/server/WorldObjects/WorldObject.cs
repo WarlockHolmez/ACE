@@ -1819,4 +1819,20 @@ public abstract partial class WorldObject : IActor
             }
         }
     }
+
+    public bool? ItemTranslucencyAffectsPlayer
+    {
+        get => GetProperty(PropertyBool.ItemTranslucencyAffectsPlayer);
+        set
+        {
+            if (!value.HasValue)
+            {
+                RemoveProperty(PropertyBool.ItemTranslucencyAffectsPlayer);
+            }
+            else
+            {
+                SetProperty(PropertyBool.ItemTranslucencyAffectsPlayer, value.Value);
+            }
+        }
+    }
 }

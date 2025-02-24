@@ -407,6 +407,7 @@ partial class Player
 
         // handle special cases
         OnEquipNoCompsForPortalSpellsItem(item);
+        OnEquipItemTranslucency(item);
 
         HandleGearAttributeRatings(item, SpellId.RatingStrength, PropertyInt.GearStrength, SpellCategory.GearRatingStrength);
         HandleGearAttributeRatings(item, SpellId.RatingEndurance, PropertyInt.GearEndurance, SpellCategory.GearRatingEndurance);
@@ -416,6 +417,34 @@ partial class Player
         HandleGearAttributeRatings(item, SpellId.RatingSelf, PropertyInt.GearSelf, SpellCategory.GearRatingSelf);
 
         return true;
+    }
+
+    private void OnEquipItemTranslucency(WorldObject item)
+    {
+        if (item is { ItemTranslucencyAffectsPlayer: not true })
+        {
+            return;
+        }
+
+        var translucency = item.Translucency ?? 0;
+
+        Translucency = translucency;
+        CharacterChangesDetected = true;
+
+        //EnqueueBroadcast(new GameMessageScript(Guid, PlayScript.StealthBegin));
+
+        //Session.Network.EnqueueSend(new GameMessageSetState(this, PhysicsObj.State));
+        //EnqueueBroadcast(new GameMessageSetState(this, PhysicsObj.State));
+
+        //EnqueueBroadcastPhysicsState();
+        //EnqueueBroadcastUpdateObject();
+        //EnqueueBroadcast(false, new GameMessageDeleteObject(this));
+        //EnqueueBroadcast(false, new GameMessageCreateObject(this, true, true));
+
+        //var msg = new GameMessagePrivateUpdatePropertyFloat(this, PropertyFloat.Translucency, translucency);
+        //var msg = new GameMessageUpdateObject()
+
+        //EnqueueBroadcast(msg);
     }
 
     private void OnEquipNoCompsForPortalSpellsItem(WorldObject item)

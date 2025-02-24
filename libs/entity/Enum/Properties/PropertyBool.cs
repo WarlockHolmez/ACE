@@ -238,6 +238,7 @@ public enum PropertyBool : ushort
     SilentCombat = 158,
     ReturnHomeWhenStuck = 159,
     ResetFromHotspot = 160,
+    ItemTranslucencyAffectsPlayer = 161,
 
     /* custom */
     [ServerOnly]
