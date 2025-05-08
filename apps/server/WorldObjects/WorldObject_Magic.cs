@@ -1409,8 +1409,7 @@ partial class WorldObject
         {
             var drainMod = isDrain ? (float)transferSource.GetResistanceMod(GetDrainResistanceType(spell.Source)) : 1.0f;
 
-            srcVitalChange = (uint)
-                Math.Round(transferSource.GetCreatureVital(spell.Source).Current * spell.Proportion * drainMod);
+            srcVitalChange = (uint)Math.Round(transferSource.GetCreatureVital(spell.Source).Current * spell.Proportion * drainMod);
         }
 
         // TransferCap caps both srcVitalChange and destVitalChange
@@ -1428,10 +1427,7 @@ partial class WorldObject
 
             destVitalChange = (uint)Math.Round(srcVitalChange * (1.0f - spell.LossPercent) * boostMod);
 
-            // scale srcVitalChange to destVitalChange?
-            var missingDest = destination.GetCreatureVital(spell.Destination).Missing;
-
-            var maxDestVitalChange = missingDest;
+            var maxDestVitalChange = (uint)spell.TransferCap;
             if (spell.TransferCap != 0 && maxDestVitalChange > spell.TransferCap)
             {
                 maxDestVitalChange = (uint)spell.TransferCap;
@@ -1605,11 +1601,11 @@ partial class WorldObject
                 {
                     if (transferSource == this)
                     {
-                        sourceMsg = $"{chargedMsg}You lose {srcVitalChange} points of {srcVital} due to casting {spell.Name} on {targetCreature.Name}";
+                        sourceMsg = $"{chargedMsg}You lose {srcVitalChange} points of {srcVital} due to casting {spell.Name} on {targetCreature.Name}.";
                     }
                     else
                     {
-                        targetMsg = $"{chargedMsg}You lose {srcVitalChange} points of {srcVital} due to {caster.Name} casting {spell.Name} on you";
+                        targetMsg = $"{chargedMsg}{caster.Name} drained {srcVitalChange} points of your {srcVital} with {spell.Name}.";
                     }
 
                     if (destination != null)
@@ -1622,11 +1618,11 @@ partial class WorldObject
                 {
                     if (destination == this)
                     {
-                        sourceMsg = $"{chargedMsg}You gain {destVitalChange} points of {destVital} due to casting {spell.Name} on {targetCreature.Name}";
+                        sourceMsg = $"{chargedMsg}You drain {srcVitalChange} points of {targetCreature.Name}'s {destVital} with {spell.Name}.";
                     }
                     else
                     {
-                        targetMsg = $"{chargedMsg}You gain {destVitalChange} points of {destVital} due to {caster.Name} casting {spell.Name} on you";
+                        targetMsg = $"{chargedMsg}You gain {destVitalChange} points of {destVital} due to {caster.Name} casting {spell.Name} on you.";
                     }
                 }
             }
