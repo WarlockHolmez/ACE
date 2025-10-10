@@ -1117,6 +1117,17 @@ public static partial class LootGenerationFactory
 
                 wo.SetProperty(PropertyFloat.IgnoreWard, final);
             }
+
+            if (wo.ManaConversionMod != null)
+            {
+                var baseStat = wo.ManaConversionMod.Value;
+                var bonusRange = WeaponModMaxBonus;
+                var roll = GetDiminishingRoll(null, lootQuality);
+                var bonus = bonusRange * roll;
+                var final = baseStat + bonus;
+
+                wo.SetProperty(PropertyFloat.ManaConversionMod, final);
+            }
         }
 
         // Armor Base Stats

@@ -60,74 +60,6 @@ public static partial class LootGenerationFactory
         TreasureRoll roll = null
     )
     {
-        if (wieldDifficulty != null)
-        {
-            // previous method
-
-            var wieldRequirement = WieldRequirement.RawSkill;
-            var wieldSkillType = Skill.None;
-
-            double elementalDamageMod = 0;
-
-            if (wieldDifficulty == 0)
-            {
-                if (profile.Tier > 6)
-                {
-                    wieldRequirement = WieldRequirement.Level;
-                    wieldSkillType = Skill.Axe; // Set by examples from PCAP data
-
-                    wieldDifficulty = profile.Tier switch
-                    {
-                        7 => 150, // In this instance, used for indicating player level, rather than skill level
-                        _ => 180, // In this instance, used for indicating player level, rather than skill level
-                    };
-                }
-            }
-            else
-            {
-                elementalDamageMod = RollElementalDamageMod(wieldDifficulty.Value, profile);
-
-                if (wo.W_DamageType == DamageType.Nether)
-                {
-                    wieldSkillType = Skill.VoidMagic;
-                }
-                else
-                {
-                    wieldSkillType = Skill.WarMagic;
-                }
-            }
-
-            // ManaConversionMod
-            var manaConversionMod = RollManaConversionMod(profile.Tier);
-            if (manaConversionMod > 0.0f)
-            {
-                wo.ManaConversionMod = manaConversionMod;
-            }
-
-            // ElementalDamageMod
-            if (elementalDamageMod > 1.0f)
-            {
-                wo.ElementalDamageMod = elementalDamageMod;
-            }
-
-            // WieldRequirements
-            if (wieldDifficulty > 0 || wieldRequirement == WieldRequirement.Level)
-            {
-                wo.WieldRequirements = wieldRequirement;
-                wo.WieldSkillType = (int)wieldSkillType;
-                wo.WieldDifficulty = wieldDifficulty;
-            }
-            else
-            {
-                wo.WieldRequirements = WieldRequirement.Invalid;
-                wo.WieldSkillType = null;
-                wo.WieldDifficulty = null;
-            }
-
-            // WeaponDefense
-            wo.WeaponPhysicalDefense = RollWeaponDefense(wieldDifficulty.Value, profile);
-        }
-
         wo.Tier = GetTierValue(profile);
 
         // Add element/material to low tier orb/wand/scepter/staff
@@ -194,6 +126,8 @@ public static partial class LootGenerationFactory
         TryMutateWeaponMods(wo, profile, out var modsPercentile, true);
 
         TryMutateWeaponSubtypeBonuses(wo, profile, out var subtypeBonusPercentile);
+
+        wo.ManaConversionMod = RollManaConversionMod(profile.Tier, profile.LootQualityMod);
 
         // gem count / gem material
         if (wo.GemCode != null)
@@ -602,186 +536,16 @@ public static partial class LootGenerationFactory
     /// <summary>
     /// Rolls for the ManaConversionMod for casters
     /// </summary>
-    private static double RollManaConversionMod(int tier)
+    private static double RollManaConversionMod(int tier, float lootQualityMod)
     {
-        var magicMod = 0;
+        const double baseMod = 0.1;
+        const double rollRange = 0.1;
+        const double bonusPerTier = 0.01;
 
-        var chance = 0;
-        switch (tier)
-        {
-            case 1:
-            case 2:
-                magicMod = 0;
-                break;
-            case 3:
-                chance = ThreadSafeRandom.Next(1, 1000);
-                if (chance > 900)
-                {
-                    magicMod = 5;
-                }
-                else if (chance > 800)
-                {
-                    magicMod = 4;
-                }
-                else if (chance > 700)
-                {
-                    magicMod = 3;
-                }
-                else if (chance > 600)
-                {
-                    magicMod = 2;
-                }
-                else if (chance > 500)
-                {
-                    magicMod = 1;
-                }
+        var roll = GetDiminishingRoll(null, lootQualityMod);
+        var tierBonus = tier * bonusPerTier;
 
-                break;
-            case 4:
-                chance = ThreadSafeRandom.Next(1, 1000);
-                if (chance > 900)
-                {
-                    magicMod = 10;
-                }
-                else if (chance > 800)
-                {
-                    magicMod = 9;
-                }
-                else if (chance > 700)
-                {
-                    magicMod = 8;
-                }
-                else if (chance > 600)
-                {
-                    magicMod = 7;
-                }
-                else if (chance > 500)
-                {
-                    magicMod = 6;
-                }
-                else
-                {
-                    magicMod = 5;
-                }
-
-                break;
-            case 5:
-                chance = ThreadSafeRandom.Next(1, 1000);
-                if (chance > 900)
-                {
-                    magicMod = 10;
-                }
-                else if (chance > 800)
-                {
-                    magicMod = 9;
-                }
-                else if (chance > 700)
-                {
-                    magicMod = 8;
-                }
-                else if (chance > 600)
-                {
-                    magicMod = 7;
-                }
-                else if (chance > 500)
-                {
-                    magicMod = 6;
-                }
-                else
-                {
-                    magicMod = 5;
-                }
-
-                break;
-            case 6:
-                chance = ThreadSafeRandom.Next(1, 1000);
-                if (chance > 900)
-                {
-                    magicMod = 10;
-                }
-                else if (chance > 800)
-                {
-                    magicMod = 9;
-                }
-                else if (chance > 700)
-                {
-                    magicMod = 8;
-                }
-                else if (chance > 600)
-                {
-                    magicMod = 7;
-                }
-                else if (chance > 500)
-                {
-                    magicMod = 6;
-                }
-                else
-                {
-                    magicMod = 5;
-                }
-
-                break;
-            case 7:
-                chance = ThreadSafeRandom.Next(1, 1000);
-                if (chance > 900)
-                {
-                    magicMod = 10;
-                }
-                else if (chance > 800)
-                {
-                    magicMod = 9;
-                }
-                else if (chance > 700)
-                {
-                    magicMod = 8;
-                }
-                else if (chance > 600)
-                {
-                    magicMod = 7;
-                }
-                else if (chance > 500)
-                {
-                    magicMod = 6;
-                }
-                else
-                {
-                    magicMod = 5;
-                }
-
-                break;
-            default:
-                chance = ThreadSafeRandom.Next(1, 1000);
-                if (chance > 900)
-                {
-                    magicMod = 10;
-                }
-                else if (chance > 800)
-                {
-                    magicMod = 9;
-                }
-                else if (chance > 700)
-                {
-                    magicMod = 8;
-                }
-                else if (chance > 600)
-                {
-                    magicMod = 7;
-                }
-                else if (chance > 500)
-                {
-                    magicMod = 6;
-                }
-                else
-                {
-                    magicMod = 5;
-                }
-
-                break;
-        }
-
-        var manaDMod = magicMod / 100.0;
-
-        return manaDMod;
+        return baseMod + tierBonus + (rollRange * roll);
     }
 
     /// <summary>
