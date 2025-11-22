@@ -25,7 +25,7 @@ public class Tutorial
         }
 
         var player = session.Player;
-        var setting = parameters[0];
+        var setting = parameters?[0];
 
         if (player is null)
         {
