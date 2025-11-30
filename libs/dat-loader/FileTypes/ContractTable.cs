@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using ACE.DatLoader.Entity;
@@ -19,9 +20,9 @@ public class ContractTable : FileType
         Id = reader.ReadUInt32();
 
         var num_contracts = reader.ReadUInt16();
-        /*ushort table_size = */
+        var table_size = 
         reader.ReadUInt16(); // We don't need this since C# handles it's own memory
-
+        Console.WriteLine($"[ContractTable] Expecting {num_contracts} contracts, Table Size: {table_size} bytes");
         for (ushort i = 0; i < num_contracts; i++)
         {
             var key = reader.ReadUInt32();

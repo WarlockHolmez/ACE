@@ -324,5 +324,6 @@ public enum ContractId : uint
     Contract_319_Kill__Tou_Tou_Grievver_Shredders,
     Contract_320_Kill__Tou_Tou_Devourer_Marguls,
     Contract_321_Kill__Tou_Tou_Shadows,
-    Contract_322_Kill__Tou_Tou_Void_Lords
+    Contract_322_Kill__Tou_Tou_Void_Lords,
+   // Contract_323_Training_Academy
 }
