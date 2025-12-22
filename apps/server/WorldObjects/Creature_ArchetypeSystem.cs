@@ -1042,7 +1042,23 @@ partial class Creature
             );
         }
 
+        SetMonsterCleavingFloor((int)target);
+
         return newArmor;
+    }
+
+    private void SetMonsterCleavingFloor(int avgArmorOfLevel)
+    {
+        const float avgBonusOfCleaving = 1.2f;
+
+        var armorMod = avgArmorOfLevel > 0
+            ? 100.0f / (avgArmorOfLevel + 100.0f)
+            : 1.0f - avgArmorOfLevel / 100.0f;
+
+        var armorModAfterCleaving = armorMod * avgBonusOfCleaving;
+        var armorLevelFloor = avgArmorOfLevel * (1.0f - armorModAfterCleaving);
+
+        MonsterCleavingFloor = (int)Math.Round(armorLevelFloor);
     }
 
     private int GetNewWardLevel(int tier, float statWeight, double toughness, double magic)

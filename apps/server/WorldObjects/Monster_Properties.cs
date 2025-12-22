@@ -38,4 +38,21 @@ partial class Creature
             }
         }
     }
+
+
+    public int MonsterCleavingFloor
+    {
+        get => GetProperty(PropertyInt.MonsterCleavingFloor) ?? 0;
+        set
+        {
+            if (value == 0)
+            {
+                RemoveProperty(PropertyInt.MonsterCleavingFloor);
+            }
+            else
+            {
+                SetProperty(PropertyInt.MonsterCleavingFloor, value);
+            }
+        }
+    }
 }
