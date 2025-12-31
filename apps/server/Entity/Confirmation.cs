@@ -209,6 +209,9 @@ public class Confirmation_CraftInteration : Confirmation
             case WeenieType.DungeonModder:
                 source.ActOnUse(player);
                 break;
+            case WeenieType.TrophySolvent:
+                TrophySolvent.UseObjectOnTarget(player, source, target, !repeatConfirmation);
+                break;
             default:
                 RecipeManager.UseObjectOnTarget(player, source, target, true);
                 break;
