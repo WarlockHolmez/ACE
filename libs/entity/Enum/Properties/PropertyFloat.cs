@@ -239,7 +239,16 @@ public enum PropertyFloat : ushort
     SigilTrinketHealthReserved = 198,
     ResistBleed = 199,
     ArchetypeSpellDamageMultiplier = 200,
-
+    
+    [ServerOnly]
+    PatrolScanInterval = 201,
+    
+    [ServerOnly]
+    PatrolPauseMinSeconds = 202,
+    
+    [ServerOnly]
+    PatrolPauseMaxSeconds = 203,
+    
     [ServerOnly]
     PCAPRecordedWorkmanship = 8004,
 
@@ -303,7 +312,6 @@ public enum PropertyFloat : ushort
     ArmorResourcePenalty = 20021,
     ArmorDeceptionMod = 20022,
     ArmorTwohandedCombatMod = 20023,
-
     BaseArmorWarMagicMod = 20024,
     BaseArmorLifeMagicMod = 20025,
     BaseArmorMagicDefMod = 20026,
@@ -327,7 +335,6 @@ public enum PropertyFloat : ushort
     BaseArmorResourcePenalty = 20044,
     BaseArmorDeceptionMod = 20045,
     BaseArmorTwohandedCombatMod = 20046,
-
     BaseWeaponPhysicalDefense = 20047,
     BaseWeaponMagicalDefense = 20048,
     BaseWeaponOffense = 20049,

@@ -670,7 +670,11 @@ public static class DefaultPropertyManager
         PropertyManager.ModifyLong("max_level", 126);
         PropertyManager.ModifyLong("fellowship_even_share_level", 50);
 
+        PropertyManager.ModifyLong("market_listing_max_price", 1_000_000_000);
+
         PropertyManager.ModifyDouble("vendor_unique_rot_time", 1800);
+
+        PropertyManager.ModifyBool("log_market_guid_suppression", false);
     }
 
     // ==================================================================================
@@ -679,6 +683,7 @@ public static class DefaultPropertyManager
     // ==================================================================================
 
     public static readonly ReadOnlyDictionary<string, Property<bool>> DefaultBooleanProperties = DictOf(
+        ("log_market_guid_suppression", new Property<bool>(false, "If enabled, logs warnings when dynamic GUID recycling is suppressed for active market escrow objects")),
         ("account_login_boots_in_use", new Property<bool>(true, "if FALSE, oldest connection to account is not booted when new connection occurs")),
         ("advanced_combat_pets", new Property<bool>(false, "(non-retail function) If enabled, Combat Pets can cast spells")),
         ("advocate_fane_auto_bestow", new Property<bool>(false, "If enabled, Advocate Fane will automatically bestow new advocates to advocate_fane_auto_bestow_level")),
@@ -834,7 +839,9 @@ public static class DefaultPropertyManager
         ("olthoi_north_camp_south_supply_level", new Property<long>(0, "Set the supply level of the Olthoi North Southern Camp.")),
         ("olthoi_north_camp_west_supply_level", new Property<long>(0, "Set the supply level of the Olthoi North Western Camp.")),
         ("olthoi_north_camp_north_supply_level", new Property<long>(0, "Set the supply level of the Olthoi North Northern Camp.")),
-        ("fragment_stability_phase_one", new Property<long>(0, "Phase One resonance stability tracker (0–15000 max)"))
+        ("fragment_stability_phase_one", new Property<long>(0, "Phase One resonance stability tracker (0–15000 max)")),
+        ("market_listing_max_price", new Property<long>(1_000_000_000, "Max market list price")),
+        ("market_max_active_listings_per_account", new Property<long>(30, "Max listings per account"))
     );
 
     public static readonly ReadOnlyDictionary<string, Property<double>> DefaultDoubleProperties = DictOf(
@@ -857,11 +864,16 @@ public static class DefaultPropertyManager
         ("mob_awareness_range", new Property<double>(1.0, "Scales the distance the monsters become alerted and aggro the players")),
         ("pk_new_character_grace_period", new Property<double>(300, "the number of seconds, in addition to pk_respite_timer, that a player killer is set to non-player killer status after first exiting training academy")),
         ("pk_respite_timer", new Property<double>(300, "the number of seconds that a player killer is set to non-player killer status after dying to another player killer")),
+        ("ps_cap", new Property<double>(8, "number of players required to trigger a portal storm")),
         ("quest_mindelta_rate", new Property<double>(1.0, "scales all quest min delta time between solves, 1 being normal")),
         ("rare_drop_rate_percent", new Property<double>(0.04, "Adjust the chance of a rare to spawn as a percentage. Default is 0.04, or 1 in 2,500. Max is 100, or every eligible drop.")),
+        ("rz_maxfall", new Property<double>(2, "maximum allowed vertical drop (in meters) when teleporting players via shroud or portal storm")),
         ("spellcast_max_angle", new Property<double>(20.0, "for advanced player spell casting, the maximum angle to target release a spell projectile. retail seemed to default to value of around 20, although some players seem to prefer a higher 45 degree angle")),
         ("trophy_drop_rate", new Property<double>(1.0, "Modifier for trophies dropped on creature death")),
         ("unlocker_window", new Property<double>(10.0, "The number of seconds a player unlocking a chest has exclusive access to first opening the chest.")),
+        ("market_listing_lifetime_seconds", new Property<double>(60 * 60 * 24 * 7, "How long (in seconds) a player market listing remains active before it expires.")),
+        ("market_listing_payout_fee", new Property<double>(0.05, "The fee for market listing sales.")),
+        ("market_listing_cancellation_fee", new Property<double>(0.01, "The fee for market listing cancellations")),
         ("vendor_unique_rot_time", new Property<double>(300, "the number of seconds before unique items sold to vendors disappear")),
         ("vitae_penalty", new Property<double>(0.05, "the amount of vitae penalty a player gets per death")),
         ("vitae_penalty_max", new Property<double>(0.40, "the maximum vitae penalty a player can have")),

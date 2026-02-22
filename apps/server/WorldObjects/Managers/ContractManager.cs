@@ -184,6 +184,12 @@ public class ContractManager
 
             Player.CharacterChangesDetected = true;
             Player.Session.Network.EnqueueSend(new GameEventSendClientContractTracker(Player.Session, contract));
+            Player.Session.Network.EnqueueSend(
+                new GameMessageSystemChat(
+                    $"You have received a new task: {datContract.ContractName}.",
+                    ChatMessageType.System
+                )
+            );
 
             RefreshMonitoredQuestFlags();
         }
@@ -278,12 +284,53 @@ public class ContractManager
         {
             if (contracts.Value.Contains(questName.ToLower()))
             {
-                Update(contracts.Key);
+                Update(contracts.Key, questName);
             }
         }
     }
 
-    private void Update(uint contractId)
+    /// <summary>
+    /// Checks all contracts in the DAT file for matching QuestflagStarted field.
+    /// If a match is found and the player doesn't already have the contract, bestow it.
+    /// </summary>
+    public void CheckAndBestowContractsOnQuestStamp(string questName)
+    {
+        var contractTable = DatManager.PortalDat.ContractTable;
+
+        if (contractTable?.Contracts == null)
+        {
+            return;
+        }
+
+        var questNameLower = questName.ToLower();
+
+        foreach (var contractEntry in contractTable.Contracts)
+        {
+            var contract = contractEntry.Value;
+
+            // Check if this contract has a QuestflagStarted that matches the quest stamp
+            if (!string.IsNullOrWhiteSpace(contract.QuestflagStarted) &&
+                contract.QuestflagStarted.Equals(questName, StringComparison.OrdinalIgnoreCase))
+            {
+                // Check if player already has this contract
+                if (!HasContract(contract.ContractId))
+                {
+                    if (Debug)
+                    {
+                        Console.WriteLine(
+                            $"{Player.Name}.ContractManager.CheckAndBestowContractsOnQuestStamp({questName}): " +
+                            $"Bestowing contract {contract.ContractName} ({contract.ContractId})"
+                        );
+                    }
+
+                    // Bestow the contract (Add() already sends the "given the task" message)
+                    Add(contract.ContractId);
+                }
+            }
+        }
+    }
+
+    private void Update(uint contractId, string triggeringQuestName = null)
     {
         if (Debug)
         {
@@ -295,6 +342,22 @@ public class ContractManager
         if (contract != null)
         {
             Player.Session.Network.EnqueueSend(new GameEventSendClientContractTracker(Player.Session, contract));
+
+            if (triggeringQuestName != null)
+            {
+                var datContract = GetContractFromDat(contractId);
+                if (datContract != null &&
+                    !string.IsNullOrWhiteSpace(datContract.QuestflagFinished) &&
+                    datContract.QuestflagFinished.Equals(triggeringQuestName, StringComparison.OrdinalIgnoreCase))
+                {
+                    Player.Session.Network.EnqueueSend(
+                        new GameMessageSystemChat(
+                            $"You have completed the task: {datContract.ContractName}.",
+                            ChatMessageType.System
+                        )
+                    );
+                }
+            }
         }
     }
 }

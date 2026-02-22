@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using ACE.Database;
 using ACE.DatLoader;
 using ACE.DatLoader.Entity;
 using ACE.DatLoader.FileTypes;
@@ -13,6 +14,7 @@ using ACE.Entity.Models;
 using ACE.Server.Entity;
 using ACE.Server.Entity.Actions;
 using ACE.Server.Managers;
+using ACE.Server.Market;
 using ACE.Server.Network;
 using ACE.Server.Network.GameMessages;
 using ACE.Server.Network.GameMessages.Messages;
@@ -25,6 +27,81 @@ namespace ACE.Server.WorldObjects;
 
 partial class WorldObject
 {
+    [ThreadStatic]
+    private static Dictionary<int, (ACE.Database.Models.Shard.PlayerMarketListing Listing, DateTime ExpiresAtUtc)> _marketListingCache;
+
+    public static void ClearMarketListingCache()
+    {
+        _marketListingCache?.Clear();
+    }
+
+    private static ACE.Database.Models.Shard.PlayerMarketListing? GetMarketListingCached(int listingId)
+    {
+        if (listingId <= 0)
+        {
+            return null;
+        }
+
+        _marketListingCache ??= new Dictionary<int, (ACE.Database.Models.Shard.PlayerMarketListing Listing, DateTime ExpiresAtUtc)>();
+
+        if (_marketListingCache.TryGetValue(listingId, out var entry))
+        {
+            if (entry.ExpiresAtUtc > DateTime.UtcNow)
+            {
+                return entry.Listing;
+            }
+
+            _marketListingCache.Remove(listingId);
+        }
+
+        var listing = MarketServiceLocator.PlayerMarketRepository.GetListingById(listingId);
+        if (listing != null)
+        {
+            // Cache until listing expiry (or immediate eviction if already expired).
+            _marketListingCache[listingId] = (listing, listing.ExpiresAtUtc);
+        }
+
+        return listing;
+    }
+
+    private string GetNameForClient()
+    {
+        var name = Name ?? string.Empty;
+
+        var marketListingId = GetProperty(PropertyInt.MarketListingId);
+        if (marketListingId.HasValue && marketListingId.Value > 0)
+        {
+            try
+            {
+                var listing = GetMarketListingCached(marketListingId.Value);
+                if (listing != null && !listing.IsSold && !listing.IsCancelled && listing.ExpiresAtUtc > DateTime.UtcNow)
+                {
+                    var remaining = listing.ExpiresAtUtc - DateTime.UtcNow;
+                    if (remaining < TimeSpan.Zero)
+                    {
+                        remaining = TimeSpan.Zero;
+                    }
+
+                    var remainingText = remaining.TotalDays >= 1
+                        ? $"{(int)Math.Floor(remaining.TotalDays)}d {remaining.Hours}h"
+                        : remaining.TotalHours >= 1
+                            ? $"{(int)Math.Floor(remaining.TotalHours)}h {remaining.Minutes}m"
+                            : remaining.TotalMinutes >= 1
+                                ? $"{(int)Math.Floor(remaining.TotalMinutes)}m {remaining.Seconds}s"
+                                : $"{Math.Max(0, remaining.Seconds)}s";
+
+                    name = $"{name} ({remainingText})";
+                }
+            }
+            catch
+            {
+                // ignore; object serialization should never fail because market lookup failed
+            }
+        }
+
+        return name;
+    }
+
     public virtual void SerializeUpdateObject(BinaryWriter writer, bool adminvision = false, bool changenodraw = false)
     {
         // content of these 2 is the same? TODO: Validate that?
@@ -81,7 +158,7 @@ partial class WorldObject
         }
 
         writer.Write((uint)weenieFlags);
-        writer.WriteString16L(Name ?? string.Empty);
+        writer.WriteString16L(GetNameForClient());
         writer.WritePackedDword(WeenieClassId);
         writer.WritePackedDwordOfKnownType(IconId, 0x6000000);
         writer.Write((uint)ItemType);
@@ -310,6 +387,19 @@ partial class WorldObject
     {
         var objDesc = CalculateObjDesc();
 
+        // Normalize texture changes: remove identity mappings and keep last mapping per (PartIndex, OldTexture)
+        if (objDesc.TextureChanges != null && objDesc.TextureChanges.Count > 0)
+        {
+            var deduped = objDesc.TextureChanges
+                .Where(t => t.OldTexture != t.NewTexture)
+                .GroupBy(t => new { t.PartIndex, t.OldTexture })
+                .Select(g => g.Last())
+                .ToList();
+
+            objDesc.TextureChanges.Clear();
+            objDesc.TextureChanges.AddRange(deduped);
+        }
+
         writer.Write((byte)0x11);
         writer.Write((byte)objDesc.SubPalettes.Count);
         writer.Write((byte)objDesc.TextureChanges.Count);
@@ -403,21 +493,8 @@ partial class WorldObject
 
         if ((physicsDescriptionFlag & PhysicsDescriptionFlag.Movement) != 0)
         {
-            /* OLD METHOD
-            var movementData = new MovementData(this, CurrentMotionState).Serialize();
-
-            writer.Write((uint)movementData.Length);
-
-            if (movementData.Length > 0)
-            {
-                writer.Write(movementData);
-                writer.Write(Convert.ToUInt32(CurrentMotionState.IsAutonomous));
-            }
-            */
-
             var movementData = new MovementData(this, CurrentMotionState);
 
-            // We'll come back to here to write the length
             var preWritePosition = writer.BaseStream.Position;
             writer.Write((uint)0);
 
@@ -427,7 +504,6 @@ partial class WorldObject
 
             if (preWritePosition + 4 != postWritePosition)
             {
-                // Go back and write the length
                 writer.BaseStream.Position = preWritePosition;
                 writer.Write((uint)(postWritePosition - preWritePosition - 4));
 
@@ -533,16 +609,15 @@ partial class WorldObject
             writer.Write(DefaultScriptIntensity ?? 0f);
         }
 
-        // timestamps
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectPosition)); // 0
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectMovement)); // 1
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectState)); // 2
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectVector)); // 3
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectTeleport)); // 4
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectServerControl)); // 5
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectForcePosition)); // 6
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectVisualDesc)); // 7
-        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectInstance)); // 8
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectPosition));
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectMovement));
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectState));
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectVector));
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectTeleport));
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectServerControl));
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectForcePosition));
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectVisualDesc));
+        writer.Write(Sequences.GetCurrentSequence(SequenceType.ObjectInstance));
 
         writer.Align();
     }
@@ -1641,6 +1716,144 @@ partial class WorldObject
             );
         }
         //AddTexture(0x10, DefaultMouthTextureDID.Value, MouthTextureDID.Value);
+
+        var biota = Biota;
+
+        if (biota?.PropertiesTextureMap != null)
+        {
+            foreach (var tm in biota.PropertiesTextureMap)
+            {
+                objDesc.AddTextureChange(new PropertiesTextureMap
+                {
+                    PartIndex = tm.PartIndex,
+                    OldTexture = tm.OldTexture,
+                    NewTexture = tm.NewTexture,
+                });
+            }
+        }
+
+        ApplySurfaceMapsToObjDesc(objDesc);
+    }
+
+    /// <summary>
+    /// Applies weenie_properties_surface_map entries (0x08 -> 0x08)
+    /// by translating them into PropertiesTextureMap entries on the ObjDesc.
+    /// This depends on custom surface-loading logic from portal.dat and is
+    /// intentionally isolated here.
+    /// </summary>
+    private void ApplySurfaceMapsToObjDesc(ACE.Entity.ObjDesc objDesc)
+    {
+        var db = DatabaseManager.World;
+        var weenie = db.GetWeenie(WeenieClassId);
+
+        if (weenie == null ||
+            weenie.WeeniePropertiesSurfaceMap == null ||
+            weenie.WeeniePropertiesSurfaceMap.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var map in weenie.WeeniePropertiesSurfaceMap)
+        {
+            var partIndex = (byte)map.Index;
+
+            var textureMaps = ResolveSurfaceSwapToTextureMaps(partIndex, map.OldId, map.NewId);
+            if (textureMaps == null)
+            {
+                continue;
+            }
+
+            foreach (var tm in textureMaps)
+            {
+                // remove any existing mapping for this (PartIndex, OldTexture)
+                objDesc.TextureChanges.RemoveAll(
+                    t => t.PartIndex == tm.PartIndex && t.OldTexture == tm.OldTexture);
+
+                objDesc.AddTextureChange(new PropertiesTextureMap
+                {
+                    PartIndex = tm.PartIndex,
+                    OldTexture = tm.OldTexture,
+                    NewTexture = tm.NewTexture,
+                });
+            }
+        }
+    }
+
+    /// <summary>
+    /// Given a part index and an Old/New Surface (0x08) DID pair, return the
+    /// concrete texture swaps (0x05/0x06) needed to implement that at the client level.
+    ///
+    /// You should implement this method using your Surface loader:
+    /// - Read the "old" Surface and "new" Surface from portal.dat.
+    /// - For the relevant surface entry (matching this part index, or all if index == 0),
+    ///   compare their SurfaceTexture (0x05) lists and produce the differences as
+    ///   PropertiesTextureMap entries.
+    ///
+    /// For now this is left as a stub so you can wire in your own logic.
+    /// </summary>
+    private IEnumerable<PropertiesTextureMap> ResolveSurfaceSwapToTextureMaps(
+    byte partIndex,
+    uint oldSurfaceDid,
+    uint newSurfaceDid)
+    {
+        if (oldSurfaceDid == 0 || newSurfaceDid == 0)
+        {
+            yield break;
+        }
+
+        Surface oldSurface = null;
+        Surface newSurface = null;
+
+        try
+        {
+            oldSurface = DatManager.PortalDat.ReadFromDat<Surface>(oldSurfaceDid);
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "ResolveSurfaceSwapToTextureMaps: failed to read old Surface DID 0x{OldDid:X8}", oldSurfaceDid);
+        }
+
+        try
+        {
+            newSurface = DatManager.PortalDat.ReadFromDat<Surface>(newSurfaceDid);
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "ResolveSurfaceSwapToTextureMaps: failed to read new Surface DID 0x{NewDid:X8}", newSurfaceDid);
+        }
+
+        if (oldSurface == null || newSurface == null)
+        {
+            yield break;
+        }
+
+        var oldIsImage =
+            oldSurface.Type.HasFlag(SurfaceType.Base1Image) ||
+            oldSurface.Type.HasFlag(SurfaceType.Base1ClipMap);
+
+        var newIsImage =
+            newSurface.Type.HasFlag(SurfaceType.Base1Image) ||
+            newSurface.Type.HasFlag(SurfaceType.Base1ClipMap);
+
+        if (!oldIsImage || !newIsImage)
+        {
+            yield break;
+        }
+
+        var oldTex = oldSurface.OrigTextureId;
+        var newTex = newSurface.OrigTextureId;
+
+        if (oldTex == 0 || newTex == 0 || oldTex == newTex)
+        {
+            yield break;
+        }
+
+        yield return new PropertiesTextureMap
+        {
+            PartIndex = partIndex,
+            OldTexture = oldTex,
+            NewTexture = newTex
+        };
     }
 
     /// <summary>

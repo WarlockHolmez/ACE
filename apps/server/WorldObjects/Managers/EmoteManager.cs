@@ -19,6 +19,7 @@ using ACE.Server.Factories.Enum;
 using ACE.Server.Managers;
 using ACE.Server.Network.GameEvent.Events;
 using ACE.Server.Network.GameMessages.Messages;
+using MarketBroker = ACE.Server.Market.MarketBroker;
 using Serilog;
 
 namespace ACE.Server.WorldObjects.Managers;
@@ -526,30 +527,65 @@ public class EmoteManager
 
             case EmoteType.DeleteSelf:
 
+                if (WorldObject is Creature)
+                {
+                    WorldObject.DeleteObject();
+                    break;
+                }
+
                 if (player != null)
                 {
                     var wo = player.FindObject(
                         WorldObject.Guid.Full,
                         Player.SearchLocations.Everywhere,
                         out _,
-                        out var rootOwner,
-                        out var wasEquipped
+                        out _,
+                        out _
                     );
 
-                    if (wo?.StackSize > 1)
+                    if (wo != null)
                     {
-                        player.TryConsumeFromInventoryWithNetworking(wo, 1);
+                        var woStackSize = wo.StackSize ?? 1;
+
+                        if (woStackSize > 1)
+                        {
+                            if (!player.TryConsumeFromInventoryWithNetworking(wo, 1))
+                            {
+                                WorldObject.EmoteManager?._log.Warning(
+                                    "[EMOTE] DeleteSelf: failed to consume 1x from stack 0x{Guid:X8}:{Name} for player {Player}",
+                                    wo.Guid.Full,
+                                    wo.Name,
+                                    player.Name
+                                );
+                            }
+                        }
+                        else
+                        {
+                            if (!player.TryConsumeFromInventoryWithNetworking(wo))
+                            {
+                                WorldObject.EmoteManager?._log.Warning(
+                                    "[EMOTE] DeleteSelf: failed to consume 0x{Guid:X8}:{Name} for player {Player}",
+                                    wo.Guid.Full,
+                                    wo.Name,
+                                    player.Name
+                                );
+                            }
+                        }
+
+                        break;
                     }
-                    else
-                    {
-                        player.TryConsumeFromInventoryWithNetworking(wo);
-                    }
-                }
-                else
-                {
-                    WorldObject.DeleteObject();
+
+                    WorldObject.EmoteManager?._log.Warning(
+                        "[EMOTE] DeleteSelf: WorldObject 0x{Guid:X8}:{Name} not found in possessions of {Player}; skipping inventory delete.",
+                        WorldObject.Guid.Full,
+                        WorldObject.Name,
+                        player.Name
+                    );
+
+                    break;
                 }
 
+                WorldObject.DeleteObject();
                 break;
 
             case EmoteType.DirectBroadcast:
@@ -1361,14 +1397,22 @@ public class EmoteManager
 
             case EmoteType.LocalSignal:
 
-                if (WorldObject != null)
+                if (WorldObject != null && WorldObject.CurrentLandblock != null)
                 {
-                    if (WorldObject.CurrentLandblock != null)
+                    var crossLb = WorldObject.GetProperty(PropertyBool.SignalCrossLB) ?? false;
+
+                     if (crossLb)
+                    {
+                        WorldObject.CurrentLandblock.EmitSignalWithAdjacents(WorldObject, emote.Message);
+                    }
+                    else
                     {
                         WorldObject.CurrentLandblock.EmitSignal(WorldObject, emote.Message);
                     }
                 }
+
                 break;
+
 
             case EmoteType.LockFellow:
 
@@ -3326,16 +3370,41 @@ public class EmoteManager
 
         if (WorldObject is Creature creature && creature.IsAwake)
         {
-            return;
+            // Patrol mobs are always "awake" so they can think/move.
+            // Still allow heartbeat emotes while patrolling, but only when not in combat.
+            if (!(creature.HasPatrol && creature.AttackTarget == null))
+            {
+                return;
+            }
         }
 
         ExecuteEmoteSet(EmoteCategory.HeartBeat);
     }
 
+
     public void OnUse(Creature activator)
     {
+        // Don't let player 'Use' interrupt combat AI.
+        if (WorldObject is Creature usedCreature && usedCreature.AttackTarget != null)
+        {
+            return;
+        }
+
+        if (WorldObject is Creature creature && creature.HasPatrol && creature.AttackTarget == null)
+        {
+            creature.CancelMoveToForEmote();
+            creature.PatrolResetDestination();
+        }
+
         ExecuteEmoteSet(EmoteCategory.Use, null, activator);
+
+        if (activator is Player player && MarketBroker.IsMarketBroker(WorldObject))
+        {
+            MarketBroker.SendHelp(player);
+        }
     }
+
+
 
     public void OnPortal(Creature activator)
     {
@@ -3466,6 +3535,11 @@ public class EmoteManager
     public void OnTalkDirect(Player player, string message)
     {
         ExecuteEmoteSet(EmoteCategory.ReceiveTalkDirect, message, player);
+
+        if (MarketBroker.IsMarketBroker(WorldObject))
+        {
+            MarketBroker.HandleTalkDirect(player, WorldObject, message);
+        }
     }
 
     /// <summary>

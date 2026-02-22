@@ -875,6 +875,9 @@ public enum PropertyInt : ushort
     TrophyEssenceSpellIdAlch = 516,
 
     [ServerOnly]
+    MarketListingId = 515,
+
+    [ServerOnly]
     PCAPRecordedAutonomousMovement = 8007,
 
     [ServerOnly]

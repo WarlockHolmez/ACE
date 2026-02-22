@@ -252,6 +252,13 @@ public enum PropertyBool : ushort
     NoRotCorpse = 172,
     CreatureArmorEffectsDamageReduction = 173,
 
+    [ServerOnly]
+    PatrolEnabled = 174,
+    [ServerOnly]
+    PatrolForceWalk = 175,
+    [ServerOnly]
+    SignalCrossLB = 176,
+
     /* custom */
     [ServerOnly]
     LinkedPortalOneSummon = 9001,

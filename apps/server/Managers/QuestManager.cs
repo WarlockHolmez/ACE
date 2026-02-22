@@ -277,11 +277,6 @@ public class QuestManager
             return;
         }
 
-        if (quest.NumTimesCompleted > 5)
-        {
-            return;
-        }
-
         var townName = quest.QuestName.Replace("Quest", "");
 
         townName = townName switch
@@ -308,33 +303,75 @@ public class QuestManager
             _ => ""
         };
 
-        player.Session.Network.EnqueueSend(
-            new GameMessageSystemChat(
-                $"Tempered by the portal energies of {townName}, a {level} resilience has taken shape within you.",
-                ChatMessageType.System
-            )
-        );
+        var now = (uint)Time.GetUnixTime();
 
-    if (quest.NumTimesCompleted == 5)
-    {
-        player.Session.Network.EnqueueSend(
-            new GameMessageSystemChat(
-                $"As your body steadies under the portal energy of {townName}, a final swirl rises and breaks around you.",
-                ChatMessageType.System
-            )
-        );
+        // Always allow 1–4
+        if (quest.NumTimesCompleted <= 4)
+        {
+            player.Session.Network.EnqueueSend(
+                new GameMessageSystemChat(
+                    $"Tempered by the portal energies of {townName}, a {level} resilience has taken shape within you.",
+                    ChatMessageType.System
+                )
+            );
+            return;
+        }
+
+        // 5th stamp: always show, and reset debounce window
+        if (quest.NumTimesCompleted == 5)
+        {
+            player.LastTownAttunementMsgTime = now;
+
+            player.Session.Network.EnqueueSend(
+                new GameMessageSystemChat(
+                    $"Tempered by the portal energies of {townName}, a {level} resilience has taken shape within you.",
+                    ChatMessageType.System
+                )
+            );
+
+            player.Session.Network.EnqueueSend(
+                new GameMessageSystemChat(
+                    $"As your body steadies under the portal energy of {townName}, a final swirl rises and breaks around you.",
+                    ChatMessageType.System
+                )
+            );
+
+            player.PlayParticleEffect(PlayScript.PortalStorm, player.Guid);
+            return;
+        }
+
+        // 6+ overflow: suppress if within 1s of last town message
+        if (quest.NumTimesCompleted > 5)
+        {
+            // suppress if already Attuned for this town
+            var attunedQuestName = $"Attuned{townName}";
+                        
+            if (GetQuests().Any(q => string.Equals(q.QuestName, attunedQuestName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            player.LastTownAttunementMsgTime = now;
+
+            player.Session.Network.EnqueueSend(
+                new GameMessageSystemChat(
+                    $"A familiar surge of portal energy passes through you, then fades. You sense the elder of {townName} expects your presence.",
+                    ChatMessageType.System
+                )
+            );
+
             player.PlayParticleEffect(PlayScript.PortalStorm, player.Guid);
         }
     }
 
     private readonly List<string> QuestProgressQuestNames =
     [
+        "QuestAcademy",
         "QuestAlArqas",
         "QuestAlJalima",
         "QuestArwic",
         "QuestBaishi",
         "QuestCragstone",
-        "QuestDereth",
         "QuestDryreach",
         "QuestEastham",
         "QuestGlendenWood",
@@ -689,6 +726,12 @@ public class QuestManager
     {
         var questName = GetQuestName(questFormat);
         Update(questName); // ??
+
+        // Check if any contracts should be bestowed based on this quest stamp
+        if (Creature is Player player)
+        {
+            player.ContractManager.CheckAndBestowContractsOnQuestStamp(questName);
+        }
     }
 
     /// <summary>

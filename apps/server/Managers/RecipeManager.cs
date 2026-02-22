@@ -20,6 +20,7 @@ using ACE.Server.Network.GameMessages.Messages;
 using ACE.Server.WorldObjects;
 using Serilog;
 using Weenie = ACE.Entity.Models.Weenie;
+using ACE.Server.Mods;
 
 namespace ACE.Server.Managers;
 
@@ -482,6 +483,35 @@ public partial class RecipeManager
             if (success)
             {
                 player.ImbueSuccesses++;
+            }
+        }
+        if (success)
+        {
+            var isAllowed = RecipeComponentUseEmote.IsAllowed(source.WeenieClassId);
+
+            _log.Debug(
+                "[RIMS] recipeId={RecipeId} sourceWcid={SourceWcid} targetWcid={TargetWcid} allowed={Allowed}",
+                recipe.Id,
+                source.WeenieClassId,
+                target.WeenieClassId,
+                isAllowed
+            );
+
+            if (isAllowed)
+            {
+                try
+                {
+                    source.EmoteManager?.OnUse(player);
+                }
+                catch (Exception ex)
+                {
+                    _log.Warning(
+                        ex,
+                        "[RIMS] Emote OnUse failed. recipeId={RecipeId} sourceWcid={SourceWcid}",
+                        recipe.Id,
+                        source.WeenieClassId
+                    );
+                }
             }
         }
 
@@ -1439,6 +1469,12 @@ public partial class RecipeManager
         if (createItem > 0)
         {
             result = CreateItem(player, createItem, createAmount, trophyQuality);
+
+            // Check for and execute any PickUp emotes on the newly created item
+            if (result != null)
+            {
+                CheckPickupEmotes(player, result);
+            }
         }
 
         var modified = ModifyItem(player, recipe, source, target, result, success);
@@ -2320,6 +2356,18 @@ public partial class RecipeManager
         }
 
         return false;
+    }
+
+    // Add this method to check and trigger PickUp emotes after recipe item creation
+    private static void CheckPickupEmotes(Player player, WorldObject createdItem)
+    {
+        if (createdItem?.EmoteManager == null)
+        {
+            return;
+        }
+
+        // Trigger PickUp emote category for the created item
+        createdItem.EmoteManager.OnPickup(player);
     }
 }
 
