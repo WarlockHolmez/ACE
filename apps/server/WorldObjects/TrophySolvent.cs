@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ACE.Common;
 using ACE.Entity;
 using ACE.Entity.Enum;
 using ACE.Entity.Enum.Properties;
@@ -98,6 +99,18 @@ public class TrophySolvent : Stackable
         { (uint)WCN.W_CRYSTALIZEDACID_CLASS,        (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionAcidProtection1) },       // Prot - Acid
         { (uint)WCN.W_CRYSTALIZEDLIGHTNING_CLASS,   (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionLightningProtection1) },  // Prot - Lightning
     };
+
+    private static readonly int[] DifficultyByQuality =
+    [
+    //  Q1  Q2  Q3  Q4  Q5   Q6   Q7   Q8   Q9  Q10
+        0, 20, 40, 60, 80, 100, 130, 160, 190, 220
+    ];
+
+    private static int GetDifficulty(int trophyQuality)
+    {
+        var index = Math.Clamp(trophyQuality, 1, DifficultyByQuality.Length) - 1;
+        return DifficultyByQuality[index];
+    }
 
     /// <summary>
     /// A new biota be created taking all of its values from weenie.
@@ -247,11 +260,23 @@ public class TrophySolvent : Stackable
 
         var essenceName = $"Essence of {target.Name}";
 
+        // Compute skill check up front so the dialog can show the real success chance
+        var craftSkill = player.GetCreatureSkill(mapEntry.Skill);
+        var difficulty = GetDifficulty(trophyQuality.Value);
+        var successChance = SkillCheck.GetSkillChance((int)craftSkill.Current, difficulty);
+
+        if (PropertyManager.GetBool("bypass_crafting_checks").Item)
+        {
+            successChance = 1.0;
+        }
+
         if (!confirmed)
         {
-            var confirmationMessage =
-                $"Convert {target.NameWithMaterial} into {essenceName}?\n\n" +
-                $"This will consume the trophy and {amountToConsume} Trophy Solvents.\n\n";
+            var showDialog = player.GetCharacterOption(CharacterOption.UseCraftingChanceOfSuccessDialog);
+
+            var confirmationMessage = showDialog
+                ? $"You determine that you have a {Math.Round(successChance * 100)} percent chance to succeed.\n\nConverting {target.NameWithMaterial} into {essenceName} will consume the trophy and {amountToConsume} Trophy Solvents. Failure will destroy both.\n\n"
+                : $"Convert {target.NameWithMaterial} into {essenceName}?\n\nThis will consume the trophy and {amountToConsume} Trophy Solvents. Failure will destroy both.\n\n";
 
             if (!player.ConfirmationManager.EnqueueSend(new Confirmation_CraftInteration(player.Guid, source.Guid, target.Guid), confirmationMessage))
             {
@@ -260,8 +285,7 @@ public class TrophySolvent : Stackable
 
             if (PropertyManager.GetBool("craft_exact_msg").Item)
             {
-                var exactMsg = $"You have a 100% chance of converting {target.NameWithMaterial} into essence.";
-
+                var exactMsg = $"You have a {successChance * 100}% chance of converting {target.NameWithMaterial} into essence.";
                 player.Session.Network.EnqueueSend(new GameMessageSystemChat(exactMsg, ChatMessageType.Craft));
             }
 
@@ -299,6 +323,23 @@ public class TrophySolvent : Stackable
                 // Recalculate amount to consume to ensure consistency
                 var trophyQualityValue = target.TrophyQuality ?? 1;
                 var finalAmountToConsume = trophyQualityValue * trophyQualityValue;
+
+                var success = ThreadSafeRandom.Next(0.0f, 1.0f) < successChance;
+
+                if (!success)
+                {
+                    player.TryConsumeFromInventoryWithNetworking(target, 1);
+                    player.TryConsumeFromInventoryWithNetworking(source, finalAmountToConsume);
+                    BroadcastTrophyConversion(player, target.NameWithMaterial, essenceName, finalAmountToConsume, false);
+
+                    _log.Debug(
+                        "[TROPHY_SOLVENT] {PlayerName} failed to convert {TargetName} | Chance: {Chance}",
+                        player.Name,
+                        target.NameWithMaterial,
+                        successChance
+                    );
+                    return;
+                }
 
                 // Create the essence item
                 var essence = CreateEssenceFromTrophy(target);
@@ -354,6 +395,7 @@ public class TrophySolvent : Stackable
 
         // Set the essence name
         essence.Name = $"Essence of {trophy.Name}";
+        essence.PluralName = $"Essences of {trophy.Name}";
 
         // Set target type so the essence can be used on Misc and Food items
         essence.TargetType = ItemType.Misc | ItemType.Food;

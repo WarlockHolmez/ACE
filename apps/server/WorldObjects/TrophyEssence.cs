@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using ACE.Common;
 using ACE.Entity.Enum;
 using ACE.Entity.Enum.Properties;
+using ACE.Server.Entity;
+using ACE.Server.Factories;
 using ACE.Server.Managers;
 using ACE.Server.Network.GameMessages.Messages;
 using Serilog;
@@ -119,12 +121,13 @@ public static class TrophyEssence
 
     /// <summary>
     /// Returns the boost value for a Chug essence based on the vital type and quality.
-    /// Health: quality * 50, Stamina/Mana: quality * 75.
+    /// Health: quality * 30, Stamina/Mana: quality * 45.
+    /// Doubled for essences without a spell effect.
     /// </summary>
     private static int GetChugBoostValue(PropertyAttribute2nd vital, int trophyQuality) => vital switch
     {
-        PropertyAttribute2nd.Health => trophyQuality * 50,
-        _ => trophyQuality * 75,
+        PropertyAttribute2nd.Health => trophyQuality * 30,
+        _ => trophyQuality * 45,
     };
 
     private const int CookingShortSharedCooldown = 10076;
@@ -171,7 +174,7 @@ public static class TrophyEssence
         return DifficultyByQuality[index];
     }
 
-    public static void HandleTrophyEssenceCrafting(Player player, WorldObject source, WorldObject target)
+    public static void HandleTrophyEssenceCrafting(Player player, WorldObject source, WorldObject target, bool confirmed = false)
     {
         var isCookTarget = ValidCookTargets.Contains(target.WeenieClassId);
         var isAlchTarget = ValidAlchTargets.Contains(target.WeenieClassId);
@@ -258,6 +261,25 @@ public static class TrophyEssence
             successChance = 1.0;
         }
 
+        if (!confirmed && player.GetCharacterOption(CharacterOption.UseCraftingChanceOfSuccessDialog))
+        {
+            var percent = Math.Round(successChance * 100);
+            var dialogMsg = $"You determine that you have a {percent} percent chance to succeed.";
+
+            if (!player.ConfirmationManager.EnqueueSend(new Confirmation_CraftInteration(player.Guid, source.Guid, target.Guid), dialogMsg))
+            {
+                player.SendUseDoneEvent(WeenieError.ConfirmationInProgress);
+            }
+
+            if (PropertyManager.GetBool("craft_exact_msg").Item)
+            {
+                var exactMsg = $"You have a {successChance * 100}% chance of applying {source.NameWithMaterial} to {target.NameWithMaterial}.";
+                player.Session.Network.EnqueueSend(new GameMessageSystemChat(exactMsg, ChatMessageType.Craft));
+            }
+
+            return;
+        }
+
         var success = ThreadSafeRandom.Next(0.0f, 1.0f) < successChance;
 
         if (!success)
@@ -285,9 +307,38 @@ public static class TrophyEssence
         // Apply spell and icon overlay if the essence has a spell
         var hasSpell = spellId != null && spellId != 0;
 
+        // If the target is a stack, split one item off and work with that single item
+        WorldObject singleTarget;
+        if ((target.StackSize ?? 1) > 1)
+        {
+            var splitItem = WorldObjectFactory.CreateNewWorldObject(target.WeenieClassId);
+            if (splitItem == null)
+            {
+                player.SendTransientError($"Failed to split {target.NameWithMaterial}.");
+                return;
+            }
+
+            splitItem.SetStackSize(1);
+
+            if (!player.TryCreateInInventoryWithNetworking(splitItem))
+            {
+                player.SendTransientError($"Failed to add split item to inventory.");
+                splitItem.Destroy();
+                return;
+            }
+
+            player.TryConsumeFromInventoryWithNetworking(target, 1);
+
+            singleTarget = splitItem;
+        }
+        else
+        {
+            singleTarget = target;
+        }
+
         if (hasSpell)
         {
-            ApplySpellEffect(target, spellId.Value, trophyQuality);
+            ApplySpellEffect(singleTarget, spellId.Value, trophyQuality);
         }
 
         // Apply effect-specific properties
@@ -297,18 +348,18 @@ public static class TrophyEssence
         }
         else if (isShort)
         {
-            ApplyShortEffect(target, trophyQuality, isCookTarget, hasSpell);
+            ApplyShortEffect(singleTarget, trophyQuality, isCookTarget, hasSpell);
         }
 
         // Consume the essence
         player.TryConsumeFromInventoryWithNetworking(source, 1);
 
-        // Update the target on the client so the new properties are visible
-        player.EnqueueBroadcast(new GameMessageUpdateObject(target));
+        // Update the modified item on the client so the new properties are visible
+        player.EnqueueBroadcast(new GameMessageUpdateObject(singleTarget));
 
         player.Session.Network.EnqueueSend(
             new GameMessageSystemChat(
-                $"You successfully apply the {source.NameWithMaterial} to the {target.NameWithMaterial}.",
+                $"You successfully apply the {source.NameWithMaterial} to the {singleTarget.NameWithMaterial}.",
                 ChatMessageType.Craft
             )
         );
@@ -317,7 +368,7 @@ public static class TrophyEssence
             "[TROPHY_ESSENCE] {PlayerName} applied {SourceName} to {TargetName} | Effect: {Effect} | Chance: {Chance}",
             player.Name,
             source.NameWithMaterial,
-            target.NameWithMaterial,
+            singleTarget.NameWithMaterial,
             isLong ? "Long" : "Short",
             successChance
         );
@@ -341,14 +392,21 @@ public static class TrophyEssence
         target.CooldownDuration = ShortCooldownDuration;
         target.CooldownId = isCookTarget ? CookingShortSharedCooldown : AlchemyShortSharedCooldown;
 
-        // Only apply booster effects if the essence had no spell
-        if (!hasSpell)
+        // Applied booster effects for short effect essences
+        if (hasSpell)
         {
             if (ChugBoosterEnum.TryGetValue(target.WeenieClassId, out var boosterEnum))
             {
                 target.BoosterEnum = boosterEnum;
                 target.BoostValue = GetChugBoostValue(boosterEnum, trophyQuality);
             }
+        }
+        // Doubled booster effects for short essences without a spell
+        else
+        {
+            var boosterEnum = isCookTarget ? PropertyAttribute2nd.Health : PropertyAttribute2nd.Mana;
+            target.BoosterEnum = boosterEnum;
+            target.BoostValue = GetChugBoostValue(boosterEnum, trophyQuality) * 2; // Double the boost for non-spell essences
         }
 
         target.SetProperty(PropertyString.Use, hasSpell

@@ -4421,6 +4421,20 @@ partial class Player
             return;
         }
 
+        // For alchemy potions and cooking food stacks, since the same WCID can have different effects, we also check the Name and SpellDID to make sure the stacks are the same
+        if (sourceStack.Name != targetStack.Name || sourceStack.SpellDID != targetStack.SpellDID)
+        {
+            Session.Network.EnqueueSend(new GameEventCommunicationTransientString(Session, "You cannot merge these items together."));
+            Session.Network.EnqueueSend(
+                new GameEventInventoryServerSaveFailed(
+                    Session,
+                    mergeFromGuid,
+                    WeenieError.YouCannotMergeDifferentStacks
+                )
+            );
+            return;
+        }
+
         if (sourceStack.StackSize == null || sourceStack.StackSize == 0)
         {
             _log.Warning(
