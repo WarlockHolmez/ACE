@@ -102,6 +102,11 @@ public class Food : Stackable
             CastSpell(player);
         }
 
+        if (Spell2 != null && Spell2 != 0)
+        {
+            CastAddedSpell(player);
+        }
+
         var soundEvent = new GameMessageSound(player.Guid, GetUseSound(), 1.0f);
         player.EnqueueBroadcast(soundEvent);
 
@@ -186,6 +191,31 @@ public class Food : Stackable
         // should be 'You cast', instead of 'Item cast'
         // omitting the item caster here, so player is also used for enchantment registry caster,
         // which could prevent some scenarios with spamming enchantments from multiple food sources to protect against dispels
+        player.TryCastSpell(spell, player, this, tryResist: false);
+    }
+
+    public void CastAddedSpell(Player player)
+    {
+        var spell = new Spell(Spell2.Value);
+
+        if (spell.NotFound)
+        {
+            if (spell._spellBase != null)
+            {
+                player.Session.Network.EnqueueSend(
+                    new GameMessageSystemChat($"{spell.Name} spell not implemented, yet!", ChatMessageType.System)
+                );
+            }
+            else
+            {
+                player.Session.Network.EnqueueSend(
+                    new GameMessageSystemChat($"Invalid added spell id {Spell2 ?? 0}", ChatMessageType.System)
+                );
+            }
+
+            return;
+        }
+
         player.TryCastSpell(spell, player, this, tryResist: false);
     }
 

@@ -10,6 +10,7 @@ using ACE.Server.Factories;
 using ACE.Server.Managers;
 using ACE.Server.Network.GameMessages.Messages;
 using MotionCommand = ACE.Entity.Enum.MotionCommand;
+using WCN = ACE.Entity.Enum.WeenieClassName;
 
 namespace ACE.Server.WorldObjects;
 
@@ -17,14 +18,85 @@ public class TrophySolvent : Stackable
 {
     private const uint EssenceWCID = 1053982;
 
-    /// <summary>
-    /// Maps trophy WCIDs to their essence properties (SpellDID, Use description)
-    /// </summary>
-    private static readonly Dictionary<uint, (uint? SpellDidCook, uint? SpellDidAlch, string Use)> TrophyEssenceMap = new Dictionary<uint, (uint?, uint?, string)>()
+    private enum EssenceEffect
     {
-        { 12345, (1234, 1234, "Use this essence to learn an ancient spell.") },
-        { 67890, (null, 1234, "This essence contains pure power.") },
-        { 11111, (5678, 1234, "Channel this essence to unlock hidden knowledge.") },
+        None,
+        Long,
+        Short
+    }
+
+    /// <summary>
+    /// Maps trophy WCID to base essence properties (base SpellDID for quality 1).
+    /// Final spell ID = base spell ID + (TrophyQuality - 1), since spells are in sequential sets of 10.
+    /// </summary>
+    private static readonly Dictionary<uint, (EssenceEffect EssenceEffect, Skill Skill, uint? BaseSpellId)> TrophyEssenceMap = new()
+    {
+        //                                                Effect               Skill            BaseSpellId
+        { (uint)WCN.W_ARMOREDILLOHIDETROPHY_CLASS,  (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionSlashingProtection1) },  // Prot - Slash
+        { (uint)WCN.W_ARMOREDILLOSPINE_CLASS,       (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodQuickness1) },             // Attribute - Quick
+        { (uint)WCN.W_AUROCHMEAT_CLASS,             (EssenceEffect.Short, Skill.Cooking, null) },                                         // Chug Health
+        { (uint)WCN.W_AUROCHHHORNTROPHY_CLASS,      (EssenceEffect.Short,  Skill.Alchemy, (uint)SpellId.AlchPotionHeartSeeker1) },          // Item - Heart Seeker
+        { (uint)WCN.W_BANDERLINGSCALPTROPHY_CLASS,  (EssenceEffect.Short,  Skill.Cooking, (uint)SpellId.CookFoodJump1) },                   // Skill - Jump
+        { (uint)WCN.W_BANDERLINGBLOOD_CLASS,        (EssenceEffect.Short,  Skill.Alchemy, (uint)SpellId.AlchPotionHealOverTime1) },         // HoT - Health
+        { (uint)WCN.W_CHITTICKSPINE_CLASS,          (EssenceEffect.Short,  Skill.Alchemy, (uint)SpellId.AlchPotionManaOverTime1) },         // HoT - Mana
+        { (uint)WCN.W_CHITTICKHEAD_CLASS,           (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodCoordination1) },           // Attribute - Coordination
+        { (uint)WCN.W_DRUDGECHARMTROPHY_CLASS,      (EssenceEffect.Short,  Skill.Cooking, (uint)SpellId.CookFoodThievery1) },               // Skill - Thievery
+        { (uint)WCN.W_DRUDGEGUTS_CLASS,             (EssenceEffect.Short,  Skill.Alchemy, (uint)SpellId.AlchPotionManaOverTime1) },         // HoT - Mana
+        { (uint)WCN.W_ECTOPLASM_CLASS,              (EssenceEffect.Short, Skill.Cooking, null) },                                         // Chug Mana
+        { (uint)WCN.W_DOLLMASK_CLASS,               (EssenceEffect.Short,  Skill.Cooking, (uint)SpellId.CookFoodLifeMagic1) },              // Skill - Life Magic
+        { (uint)WCN.W_VIOLETENERGY_CLASS,           (EssenceEffect.Short,  Skill.Alchemy, (uint)SpellId.AlchPotionSpiritDrinker1) },        // Item - Spirit Drinker
+        { (uint)WCN.W_GRIEVVERSILK_CLASS,           (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodFocus1) },                  // Attribute - Focus
+        { (uint)WCN.W_GRIEVVERTIBIA_CLASS,          (EssenceEffect.Short,  Skill.Alchemy, (uint)SpellId.AlchPotionCriticalDamage1) },       // Rating - Crit Damage
+        { (uint)WCN.W_GROMNIETOOTH_CLASS,           (EssenceEffect.Short,  Skill.Alchemy, (uint)SpellId.AlchPotionBloodDrinker1) },         // Item - Blood Drinker
+        { (uint)WCN.W_GROMNIEWINGTRPHY_CLASS,       (EssenceEffect.Short, Skill.Cooking, (uint)SpellId.CookFoodJump1) },                   // Skill - Jump
+        { (uint)WCN.W_BROWNLUMPTROPHY_CLASS,        (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionSpiritDrinker1) },        // Item - Spirit Drinker
+        { (uint)WCN.W_KNATHEGG_CLASS,               (EssenceEffect.Short, Skill.Cooking, null) },                                         // Chug Mana
+        { (uint)WCN.W_LUGIANBLOOD_CLASS,            (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionBludgeoningProtection1) },// Prot - Blunt
+        { (uint)WCN.W_LUGIANSINEW_CLASS,            (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodStrength1) },               // Attribute - Strength
+        { (uint)WCN.W_MATTEKARHIDETROPHY_CLASS,     (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionColdProtection1) },       // Prot - Cold
+        { (uint)WCN.W_MATTEKARHORN_CLASS,           (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionHeartSeeker1) },          // Item - Heart Seeker
+        { (uint)WCN.W_MITEFUR_CLASS,                (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionSwiftKiller1) },          // Item - Swift Killer
+        { (uint)WCN.W_MITEHEART_CLASS,              (EssenceEffect.Short, Skill.Cooking, (uint)SpellId.CookFoodRun1) },                    // Skill - Run
+        { (uint)WCN.W_MONOUGATTROPHY_CLASS,         (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodEndurance1) },              // Attribute - Endurance
+        { (uint)WCN.W_MONOUGASKULL_CLASS,           (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionHealOverTime1) },         // HoT - Health
+        { (uint)WCN.W_MOSSWARTEGGS_CLASS,           (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodFocus1) },                  // Attribute - Focus
+        { (uint)WCN.W_SWAMPSTONE_CLASS,             (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionFireProtection1) },       // Prot - Fire
+        { (uint)WCN.W_MUMIYAHARM_CLASS,             (EssenceEffect.Short, Skill.Cooking, (uint)SpellId.CookFoodWarMagic1) },               // Skill - War Magic
+        { (uint)WCN.W_TOMBDUST_CLASS,               (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionStaminaOverTime1) },      // HoT - Stamina
+        { (uint)WCN.W_NIFFISSHELL_CLASS,            (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionDefender1) },             // Item - Defender
+        { (uint)WCN.W_NIFFISPEARL_CLASS,            (EssenceEffect.Short, Skill.Cooking, (uint)SpellId.CookFoodLifeMagic1) },              // Skill - Life Magic
+        { (uint)WCN.W_OLTHOICLAWTROPHY_CLASS,       (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionCriticalDamage1) },       // Rating - Crit Damage
+        { (uint)WCN.W_OLTHOIICHOR_CLASS,            (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionAcidProtection1) },       // Prot - Acid
+        { (uint)WCN.W_WASPVENOM_CLASS,              (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionStaminaOverTime1) },      // HoT - Stamina
+        { (uint)WCN.W_WASPWINGTRPHY_CLASS,          (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodSelf1) },                   // Attribute - Self
+        { (uint)WCN.W_RATTAIL_CLASS,                (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionCriticalChance1) },       // Rating - Crit Chance
+        { (uint)WCN.W_RATSALIVA_CLASS,              (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodQuickness1) },              // Attribute - Quick
+        { (uint)WCN.W_REEDSHARKFANG_CLASS,          (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionSwiftKiller1) },          // Item - Swift Killer
+        { (uint)WCN.W_REEDSHARKHIDETROPHY_CLASS,    (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodEndurance1) },              // Attribute - Endurance
+        { (uint)WCN.W_SCLAVUSHIDETROPHY_CLASS,      (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionStaminaOverTime1) },      // HoT - Stamina
+        { (uint)WCN.W_SCLAVUSTONGUE_CLASS,          (EssenceEffect.Short, Skill.Cooking, (uint)SpellId.CookFoodRun1) },                    // Skill - Run
+        { (uint)WCN.W_SHRETHTOOTH_CLASS,            (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionCriticalChance1) },       // Rating - Crit Chance
+        { (uint)WCN.W_SHRETHHIDETROPHY_CLASS,       (EssenceEffect.Short, Skill.Cooking, null) },                                         // Chug Stamina
+        { (uint)WCN.W_OLDBONE_CLASS,                (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionPiercingProtection1) },   // Prot - Pierce
+        { (uint)WCN.W_SKULLTRPHY_CLASS,             (EssenceEffect.Short, Skill.Cooking, null) },                                         // Chug Health
+        { (uint)WCN.W_TUSKERPELT_CLASS,             (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionBludgeoningProtection1) },// Prot - Blunt
+        { (uint)WCN.W_TUSKERTUSK_CLASS,             (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodStrength1) },               // Attribute - Strength
+        { (uint)WCN.W_UNDEADLEG_CLASS,              (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionPiercingProtection1) },   // Prot - Pierce
+        { (uint)WCN.W_MNEMOSYNETRPHY_CLASS,         (EssenceEffect.Short, Skill.Cooking, (uint)SpellId.CookFoodThievery1) },               // Skill - Thievery
+        { (uint)WCN.W_URSUINFANGTROPHY_CLASS,       (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionBloodDrinker1) },         // Item - Blood Drinker
+        { (uint)WCN.W_URSUINHIDE_CLASS,             (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionSlashingProtection1) },   // Prot - Slash
+        { (uint)WCN.W_ZEFIRGOSSAMER_CLASS,          (EssenceEffect.Short, Skill.Cooking, (uint)SpellId.CookFoodWarMagic1) },               // Skill - War Magic
+        { (uint)WCN.W_ZEFIRWINGTRPHY_CLASS,         (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionLightningProtection1) },  // Prot - Lightning
+        { (uint)WCN.W_WISPHEARTTROPHY_CLASS,        (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodSelf1) },                   // Attribute - Self
+        { (uint)WCN.W_WISPESSENCE_CLASS,            (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionManaOverTime1) },         // HoT - Mana
+        { (uint)WCN.W_TUMEROKINSIGNIATROPHY_CLASS,  (EssenceEffect.Long,  Skill.Cooking, (uint)SpellId.CookFoodCoordination1) },           // Attribute - Coordination
+        { (uint)WCN.W_TUMEROKSALTEDMEATS_CLASS,     (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionDefender1) },             // Item - Defender
+        { (uint)WCN.W_MOARSMUCK_CLASS,              (EssenceEffect.Short, Skill.Alchemy, null) },                                         // Chug Stamina
+        { (uint)WCN.W_MOARSMANHEAD_CLASS,           (EssenceEffect.Short, Skill.Alchemy, (uint)SpellId.AlchPotionHealOverTime1) },         // HoT - Health
+        { (uint)WCN.W_CRYSTALIZEDFIRE_CLASS,        (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionFireProtection1) },       // Prot - Fire
+        { (uint)WCN.W_CRYSTALIZEDFROST_CLASS,       (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionColdProtection1) },       // Prot - Cold
+        { (uint)WCN.W_CRYSTALIZEDACID_CLASS,        (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionAcidProtection1) },       // Prot - Acid
+        { (uint)WCN.W_CRYSTALIZEDLIGHTNING_CLASS,   (EssenceEffect.Long,  Skill.Alchemy, (uint)SpellId.AlchPotionLightningProtection1) },  // Prot - Lightning
     };
 
     /// <summary>
@@ -136,6 +208,20 @@ public class TrophySolvent : Stackable
             player.Session.Network.EnqueueSend(
                 new GameMessageSystemChat(
                     $"The {target.NameWithMaterial} is retained and cannot be altered.",
+                    ChatMessageType.Craft
+                )
+            );
+            player.SendUseDoneEvent();
+            return;
+        }
+
+        // Verify the trophy has a valid essence mapping with a supported effect
+        if (!TrophyEssenceMap.TryGetValue(target.WeenieClassId, out var mapEntry)
+            || mapEntry.EssenceEffect == EssenceEffect.None)
+        {
+            player.Session.Network.EnqueueSend(
+                new GameMessageSystemChat(
+                    $"The {target.NameWithMaterial} cannot be converted into an essence.",
                     ChatMessageType.Craft
                 )
             );
@@ -269,6 +355,9 @@ public class TrophySolvent : Stackable
         // Set the essence name
         essence.Name = $"Essence of {trophy.Name}";
 
+        // Set target type so the essence can be used on Misc and Food items
+        essence.TargetType = ItemType.Misc | ItemType.Food;
+
         // Transfer the trophy's icon to the essence (IconUnderlayId remains unchanged from the base essence)
         if (trophy.IconId != 0)
         {
@@ -287,58 +376,53 @@ public class TrophySolvent : Stackable
             essence.SetProperty(PropertyInt.Value, trophy.Value.Value);
         }
 
+        var qualityOffset = (trophy.TrophyQuality ?? 1) - 1;
+
         if (TrophyEssenceMap.TryGetValue(trophy.WeenieClassId, out var essenceData))
         {
-            // Set Cooking Spell Id if present
-            if (essenceData.SpellDidCook.HasValue && essenceData.SpellDidCook.Value != 0)
+            // Store the essence effect type and skill
+            essence.SetProperty(PropertyInt.TrophyEssenceEffectType, (int)essenceData.EssenceEffect);
+            essence.SetProperty(PropertyInt.TrophyEssenceSkill, (int)essenceData.Skill);
+
+            // Set spell ID if present (base + quality offset)
+            if (essenceData.BaseSpellId.HasValue && essenceData.BaseSpellId.Value != 0)
             {
-                essence.SetProperty(PropertyInt.TrophyEssenceSpellIdCook, (int)essenceData.SpellDidCook.Value);
+                essence.SetProperty(PropertyInt.TrophyEssenceSpellId, (int)(essenceData.BaseSpellId.Value + qualityOffset));
             }
 
-            // Set Alchemy Spell Id if present
-            if (essenceData.SpellDidAlch.HasValue && essenceData.SpellDidAlch.Value != 0)
-            {
-                essence.SetProperty(PropertyInt.TrophyEssenceSpellIdAlch, (int)essenceData.SpellDidAlch.Value);
-            }
+            // Auto-generate Use description based on skill
+            var hasCook = essenceData.Skill == Skill.Cooking;
+            var hasAlch = essenceData.Skill == Skill.Alchemy;
 
-            // Set Use description if present
-            if (!string.IsNullOrEmpty(essenceData.Use))
+            var useDescription = (hasCook, hasAlch) switch
             {
-                essence.SetProperty(PropertyString.Use, essenceData.Use);
+                (true, true) => "This item is used in Cooking and Alchemy.",
+                (true, false) => "This item is used in Cooking.",
+                (false, true) => "This item is used in Alchemy.",
+                _ => ""
+            };
+
+            if (!string.IsNullOrEmpty(useDescription))
+            {
+                essence.SetProperty(PropertyString.Use, useDescription);
             }
         }
 
         return essence;
     }
 
-    public int? TrophyEssenceSpellIdCook
+    public int? TrophyEssenceSpellId
     {
-        get => (int?)GetProperty(PropertyInt.TrophyEssenceSpellIdCook);
+        get => (int?)GetProperty(PropertyInt.TrophyEssenceSpellId);
         set
         {
             if (!value.HasValue)
             {
-                RemoveProperty(PropertyInt.TrophyEssenceSpellIdCook);
+                RemoveProperty(PropertyInt.TrophyEssenceSpellId);
             }
             else
             {
-                SetProperty(PropertyInt.TrophyEssenceSpellIdCook, value.Value);
-            }
-        }
-    }
-
-    public int? TrophyEssenceSpellIdAlch
-    {
-        get => (int?)GetProperty(PropertyInt.TrophyEssenceSpellIdAlch);
-        set
-        {
-            if (!value.HasValue)
-            {
-                RemoveProperty(PropertyInt.TrophyEssenceSpellIdAlch);
-            }
-            else
-            {
-                SetProperty(PropertyInt.TrophyEssenceSpellIdAlch, value.Value);
+                SetProperty(PropertyInt.TrophyEssenceSpellId, value.Value);
             }
         }
     }
