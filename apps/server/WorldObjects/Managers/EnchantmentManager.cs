@@ -1913,7 +1913,23 @@ public class EnchantmentManager
                 bleedResistance = (float)(creature.ResistBleed ?? (1 / (creature.ArchetypePhysicality ?? 1)));
             }
 
-            var wardMod = creature.GetWardMod(damager as Creature, creature, 1.0f);
+            var ignoreWardMod = 1.0f;
+
+            if (sourcePlayer != null)
+            {
+                var damagerWeapon = sourcePlayer.GetEquippedWeapon() ?? sourcePlayer.GetEquippedWand();
+
+                ignoreWardMod = sourcePlayer.GetIgnoreWardMod(damagerWeapon);
+
+                if (damagerWeapon != null && damagerWeapon.HasImbuedEffect(ImbuedEffectType.WardRending))
+                {
+                    ignoreWardMod -= WorldObject.GetWardRendingMod(sourcePlayer.GetCreatureSkill(Skill.LifeMagic));
+                }
+
+                ignoreWardMod *= 1.0f - Jewel.GetJewelEffectMod(sourcePlayer, PropertyInt.GearWardPen, "WardPen");
+            }
+
+            var wardMod = creature.GetWardMod(damager as Creature, creature, ignoreWardMod);
             var levelScalingMod = LevelScaling.GetMonsterDamageTakenHealthScalar(sourcePlayer, creature);
 
             // COMBAT ABILITY - Overload/Battery: DoT ticks need to independently consult the caster's

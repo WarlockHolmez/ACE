@@ -1114,7 +1114,15 @@ partial class WorldObject
             tryBoost = Convert.ToInt32(tryBoost * (1.0f - Jewel.GetJewelEffectMod(targetPlayer, PropertyInt.GearNullification,"Nullification")));
 
             // ward
-            var ignoreWardMod = 1.0f - Jewel.GetJewelEffectMod(player, PropertyInt.GearWardPen, "WardPen");
+            var ignoreWardMod = player.GetIgnoreWardMod(weapon);
+
+            if (weapon != null && weapon.HasImbuedEffect(ImbuedEffectType.WardRending))
+            {
+                ignoreWardMod -= GetWardRendingMod(player.GetCreatureSkill(Skill.LifeMagic));
+            }
+
+            ignoreWardMod *= 1.0f - Jewel.GetJewelEffectMod(player, PropertyInt.GearWardPen, "WardPen");
+
             var wardMod = GetWardMod(player, targetCreature, ignoreWardMod);
 
             tryBoost = Convert.ToInt32(tryBoost * wardMod);
@@ -1574,8 +1582,29 @@ partial class WorldObject
         {
             var drainMod = isDrain ? (float)transferSource.GetResistanceMod(GetDrainResistanceType(spell.Source)) : 1.0f;
 
+            var wardMod = 1.0f;
+
+            if (isDrain)
+            {
+                var ignoreWardMod = 1.0f;
+
+                if (player != null)
+                {
+                    ignoreWardMod = player.GetIgnoreWardMod(weapon);
+
+                    if (weapon != null && weapon.HasImbuedEffect(ImbuedEffectType.WardRending))
+                    {
+                        ignoreWardMod -= GetWardRendingMod(player.GetCreatureSkill(Skill.LifeMagic));
+                    }
+
+                    ignoreWardMod *= 1.0f - Jewel.GetJewelEffectMod(player, PropertyInt.GearWardPen, "WardPen");
+                }
+
+                wardMod = GetWardMod(caster, transferSource, ignoreWardMod);
+            }
+
             srcVitalChange = (uint)
-                Math.Round(transferSource.GetCreatureVital(spell.Source).Current * spell.Proportion * drainMod);
+                Math.Round(transferSource.GetCreatureVital(spell.Source).Current * spell.Proportion * drainMod * wardMod);
         }
 
         // TransferCap caps both srcVitalChange and destVitalChange
