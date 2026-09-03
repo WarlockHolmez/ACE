@@ -364,5 +364,22 @@ public enum ContractId : uint
     Contract_359_Ability__Riposte,
     Contract_360_Ability__Smokescreen,
     Contract_361_Ability__Steady_Strike,
-    Contract_362_Sigil_Slot__Blue
+    Contract_362_Sigil_Slot__Blue,
+
+    // Olthoi North: Cragstone's Fists - custom content, IDs 363-375. 363 is the master
+    // campaign-tracking contract; 364-375 are the per-step contracts. See
+    // world-db's Cragstone's Fists roadmap plan (Phase 0.5) for the full flag-chain design.
+    Contract_363_Olthoi_North__Cragstones_Fists,
+    Contract_364_Olthoi_North__Welcome_to_the_Fists,
+    Contract_365_Olthoi_North__Camp_Reconnaissance,
+    Contract_366_Olthoi_North__Find_Ymma_and_the_Scouts,
+    Contract_367_Olthoi_North__The_Matrons_Claw,
+    Contract_368_Olthoi_North__Ymmas_Kite_Shield,
+    Contract_369_Olthoi_North__The_Deepest_Dark,
+    Contract_370_Olthoi_North__Aridu_Mhuns_Oil,
+    Contract_371_Olthoi_North__Resonator_Crystals,
+    Contract_372_Olthoi_North__Unfinished_Business,
+    Contract_373_Olthoi_North__Cragstones_Armor,
+    Contract_374_Olthoi_North__The_Time_to_Strike,
+    Contract_375_Olthoi_North__Slay_the_Queen
 }

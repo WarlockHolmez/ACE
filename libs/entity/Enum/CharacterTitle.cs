@@ -898,7 +898,8 @@ public enum CharacterTitle : uint
     CosmicConscious,
     LastManStanding,
     Spellsword,
-    FistsRecruit,
+    FistsSquire,
     FistsKnight,
-    FistsKnightCaptain
+    FistsKnightLieutenant,
+    FistOfCragstone
 }
