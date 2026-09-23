@@ -74,15 +74,14 @@ public static class InstanceManager
 
             templates[template.Name] = template;
 
-            instanceOnlyLandblocks = new HashSet<LandblockId>(
-                templates.Values.Where(t => t.InstanceOnly).SelectMany(t => t.Footprint)
-            );
+            // the boundary of a template is only a margin, and stays in the persistent world
+            instanceOnlyLandblocks = new HashSet<LandblockId>(templates.Values.SelectMany(t => t.InstanceOnlyLandblocks));
         }
 
         // not with the lock held: this is LandblockManager's
         if (template.InstanceOnly)
         {
-            foreach (var landblockId in template.Footprint)
+            foreach (var landblockId in template.InstanceOnlyLandblocks)
             {
                 if (LandblockManager.IsLoaded(landblockId))
                 {
@@ -166,7 +165,7 @@ public static class InstanceManager
     {
         lock (sync)
         {
-            return templates.Values.FirstOrDefault(t => t.InstanceOnly && t.Contains(landblockId));
+            return templates.Values.FirstOrDefault(t => t.IsInstanceOnlyLandblock(landblockId));
         }
     }
 
@@ -247,6 +246,13 @@ public static class InstanceManager
         {
             var instance = Find(template, owner);
             created = instance == null;
+
+            // Whoever it is handed to is on their way in, but only counts as being in it once their teleport has happened. An instance that has been
+            // empty for nearly the timeout could be deleted before that, and the teleport refused, so the timeout starts again from now.
+            if (instance != null && instance.MemberCount == 0)
+            {
+                instance.EmptySince = UtcNow();
+            }
 
             return instance ?? Register(template, owner);
         }
@@ -430,8 +436,20 @@ public static class InstanceManager
     /// </summary>
     private static Position GetReturnPosition(Player player)
     {
-        var candidates = new[] { Get(player.InstanceId)?.Template.ReturnPosition, player.Sanctuary, player.Instantiation };
+        return FirstPersistentPosition(
+            Get(player.InstanceId)?.Template.ReturnPosition,
+            player.Sanctuary,
+            player.Instantiation
+        );
+    }
 
+    /// <summary>
+    /// The first of these positions that the persistent world will let a player into (null ones are skipped),
+    /// or WorldManager's ultimate fallback if there is none. A sanctuary can be in a landblock that only exists as an instance:
+    /// the lifestone of an instance only island, bound to while the player was on it.
+    /// </summary>
+    public static Position FirstPersistentPosition(params Position[] candidates)
+    {
         foreach (var candidate in candidates)
         {
             if (candidate != null && CanEnter(Landblock.PersistentInstance, candidate.LandblockId))
@@ -517,11 +535,8 @@ public static class InstanceManager
             return;
         }
 
-        var destination = template.ReturnPosition ?? player.Sanctuary ?? player.Instantiation;
-        if (destination == null)
-        {
-            return;
-        }
+        // not simply the sanctuary: that can be the island's own lifestone, which is just as gone as the island
+        var destination = FirstPersistentPosition(template.ReturnPosition, player.Sanctuary, player.Instantiation);
 
         _log.Information(
             "[INSTANCE] {Player} was saved inside {Template}, which only exists as an instance. Moving them to {Destination}",

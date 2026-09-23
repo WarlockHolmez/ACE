@@ -2315,7 +2315,7 @@ partial class WorldObject
                     () =>
                     {
                         var teleportDest = new Position(portal.Destination);
-                        AdjustDungeon(teleportDest);
+                        AdjustDungeonForTeleport(teleportDest, targetPlayer.InstanceId);
 
                         targetPlayer.Teleport(teleportDest);
 
@@ -2430,7 +2430,7 @@ partial class WorldObject
 
         if (summonLoc != null)
         {
-            summonLoc.LandblockId = new LandblockId(summonLoc.GetCell());
+            summonLoc.LandblockId = new LandblockId(summonLoc.GetCell(InstanceId));
         }
 
         var success = SummonPortal(portalId, summonLoc, spell.PortalLifetime, InstanceId);
@@ -2512,7 +2512,7 @@ partial class WorldObject
                 () =>
                 {
                     var teleportDest = new Position(spell.Position);
-                    AdjustDungeon(teleportDest);
+                    AdjustDungeonForTeleport(teleportDest, targetPlayer.InstanceId);
 
                     targetPlayer.Teleport(teleportDest);
 
@@ -2526,7 +2526,7 @@ partial class WorldObject
             // monsters can cast some portal spells on themselves too, possibly?
             // under certain circumstances, such as ensuring the destination is the same landblock
             var teleportDest = new Position(spell.Position);
-            AdjustDungeon(teleportDest);
+            AdjustDungeonForTeleport(teleportDest, targetCreature.InstanceId);
 
             targetCreature.FakeTeleport(teleportDest);
         }
@@ -2577,7 +2577,7 @@ partial class WorldObject
             () =>
             {
                 var teleportDest = new Position(spell.Position);
-                AdjustDungeon(teleportDest);
+                AdjustDungeonForTeleport(teleportDest, targetPlayer.InstanceId);
 
                 targetPlayer.Teleport(teleportDest);
 

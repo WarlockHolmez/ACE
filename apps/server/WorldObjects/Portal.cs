@@ -65,7 +65,7 @@ public partial class Portal : WorldObject
                 relativeDestination.RotationZ,
                 relativeDestination.RotationW
             );
-            relativeDestination.LandblockId = new LandblockId(relativeDestination.GetCell());
+            relativeDestination.LandblockId = new LandblockId(relativeDestination.GetCell(InstanceId));
 
             UpdatePortalDestination(relativeDestination);
         }
@@ -362,7 +362,7 @@ public partial class Portal : WorldObject
         // player.Session.Network.EnqueueSend(new GameMessageSystemChat("Portal sending player to destination", ChatMessageType.System));
 #endif
         var portalDest = new Position(Destination);
-        AdjustDungeon(portalDest);
+        AdjustDungeonForTeleport(portalDest, player.InstanceId);
 
         WorldManager.ThreadSafeTeleport(
             player,

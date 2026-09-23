@@ -17,7 +17,7 @@
   //     // so they can never walk to a place where nothing is loaded. 1 is enough for almost everything.
   //     "bufferRing": 1,
   //
-  //     // required. true: these landblocks only exist as instances. The persistent world refuses to load them, nobody can be
+  //     // required. true: the island's landblocks (not its ring) only exist as instances. The persistent world refuses to load them, nobody can be
   //     // teleported to them there, and someone who is saved there is moved out when they log in.
   //     "instanceOnly": true,
   //

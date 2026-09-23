@@ -235,7 +235,7 @@ public class CreateInventory
             obj.Location = session.Player.Location.InFrontOf(dist);
         }
 
-        obj.Location.LandblockId = new LandblockId(obj.Location.GetCell());
+        obj.Location.LandblockId = new LandblockId(obj.Location.GetCell(session.Player.InstanceId));
 
         LastSpawnPos = obj.Location;
 

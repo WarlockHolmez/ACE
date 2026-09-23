@@ -124,7 +124,13 @@ public static class LScape
                 return LandblockManager.TryGetLandblock(lbid, instance)?.PhysicsLandblock;
             }
 
-            // null for a landblock that only exists as an instance: the persistent world refuses to load those
+            // Nothing for a landblock that only exists as an instance. Physics asks about these whenever something in the persistent world
+            // comes near one (that is what makes the edge solid), so this is expected, and not reported the way LandblockManager reports a load
+            if (InstanceManager.IsInstanceOnly(lbid))
+            {
+                return null;
+            }
+
             var lbmLandblock = LandblockManager.GetLandblock(lbid, false, false);
 
             return lbmLandblock?.PhysicsLandblock;

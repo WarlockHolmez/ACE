@@ -91,7 +91,7 @@ public class Pet : Creature
             Location = player.Location.InFrontOf(spawnDist, false);
         }
 
-        Location.LandblockId = new LandblockId(Location.GetCell());
+        Location.LandblockId = new LandblockId(Location.GetCell(player.InstanceId));
 
         Name = player.Name + "'s " + Name;
 

@@ -91,8 +91,8 @@ public class AdjustCell
     }
 
     /// <summary>
-    /// Returns null if the landblock is not loaded in the instance. Nothing is loaded from here for an instance,
-    /// and nothing is cached for it either, so it can be asked again once the landblock is there.
+    /// Returns null if the landblock is not there: not loaded in the instance (nothing is loaded from here for an instance),
+    /// or only existing as an instance, for the persistent world. Nothing is cached then, so it can be asked again once the landblock is there.
     /// </summary>
     public static AdjustCell Get(uint dungeonID, uint instance)
     {
@@ -101,10 +101,9 @@ public class AdjustCell
         AdjustCells.TryGetValue(key, out var adjustCell);
         if (adjustCell == null)
         {
-            if (
-                instance != Common.LScape.PersistentInstance
-                && Common.LScape.get_landblock(dungeonID << 16, instance) == null
-            )
+            // Nothing is cached for a landblock that isn't there: one that is not loaded in the instance,
+            // or, in the persistent world, one that only exists as an instance
+            if (Common.LScape.get_landblock(dungeonID << 16, instance) == null)
             {
                 return null;
             }

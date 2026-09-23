@@ -14,7 +14,7 @@ This is used for two things:
 | **Template** (`InstanceTemplate`) | What an instance is made of: its landblocks (the **footprint**), where players arrive, and where they are sent when it ends. |
 | **Footprint** | The landblocks of the instance. Nothing else is ever loaded for it, whatever is next to them in the world. |
 | **Ring / boundary** | Landblocks of the footprint that are a margin around the place. They are loaded, but players are turned back when they get into one. |
-| **Instance only** | The template's landblocks stop existing in the persistent world. |
+| **Instance only** | The template's landblocks, without its ring, stop existing in the persistent world. |
 | **Instance** (`WorldInstance`) | One live copy made from a template. It has an id (1, 2, 3, ...), never reused while the server runs. |
 
 Everything that belongs to an instance carries its id: the landblocks (`Landblock.Instance`), the objects in them (`WorldObject.InstanceId`), and the physics cells and objects (`ObjCell.Instance`, `PhysicsObj.Instance`). Landblocks of different instances are never ticked in the same `LandblockGroup`, and lookups from physics into an instance never load anything.
@@ -33,7 +33,7 @@ Everything that belongs to an instance carries its id: the landblocks (`Landbloc
 
 - **No corpse.** A player who dies in an instance leaves no corpse and loses nothing, since the corpse would only be deleted along with the instance. They respawn at their bound lifestone by the same rule as every other teleport: in the instance if that lifestone is inside its landblocks (the lifestone of an island, say), in the persistent world if it is not.
 - **No dropping items.** Dropping and splitting a stack onto the ground are refused, because whatever was dropped would be deleted with the instance.
-- **Logging out.** A player who logs out inside an instance is saved at the template's return position (or at their sanctuary if it has none), so they log back in to the persistent world. A player who is found saved inside an instance-only landblock (the server went down while they were in it) is moved out when they log in.
+- **Logging out.** A player who logs out inside an instance is saved at the template's return position (or at their sanctuary if it has none), so they log back in to the persistent world. A player who is found saved inside an instance-only landblock (the server went down while they were in it) is moved out when they log in: to the template's return position, or their sanctuary, or where they started, whichever is the first that the persistent world has (a sanctuary can be the island's own lifestone), or to Holtburg if none is.
 
 ### Lifetime
 
@@ -41,7 +41,7 @@ An instance ends `instance_empty_timeout_minutes` (default **15**) after its las
 
 ## Islands
 
-An island is a template that is read from `instances.json`, next to the server. The build copies the one in `apps/server` there only when there is none yet, and never over one that is there, so the copy next to the server is the one to edit, and a rebuild does not undo it (delete it and build to get the default back). It is read once, when the server starts, before the world opens. The file that comes with the server lists three islands for testing: `aerlinthe` (13 x 12 landblocks, 210 with the ring), `test-holtburg` (one landblock, 9 with the ring) and `test-big` (3 x 3 landblocks, 25 with the ring). None is instance only, so nothing changes in the persistent world until somebody runs `/instance open <name>`. A copy next to the server that was made before they were added does not get them, because a build never overwrites that copy: delete the copy and build, or copy the islands in. The file allows comments and trailing commas.
+An island is a template that is read from `instances.json`, next to the server (in a container, `/ace/Config/instances.json`, where the one that comes with the server is copied the first time, like `Config.js`). The build, and `dotnet publish` (so the Docker image too), copies the one in `apps/server` there only when there is none yet, and never over one that is there, so the copy next to the server is the one to edit, and a rebuild does not undo it (delete it and build to get the default back). It is read once, when the server starts, before the world opens. The file that comes with the server lists three islands for testing: `aerlinthe` (13 x 12 landblocks, 210 with the ring), `test-holtburg` (one landblock, 9 with the ring) and `test-big` (3 x 3 landblocks, 25 with the ring). None is instance only, so nothing changes in the persistent world until somebody runs `/instance open <name>`. A copy next to the server that was made before they were added does not get them, because a build never overwrites that copy: delete the copy and build, or copy the islands in. The file allows comments and trailing commas.
 
 ```json
 {
@@ -82,9 +82,9 @@ The ring only exists to keep players on ground that is loaded. Put nothing there
 
 ### Instance only
 
-`"instanceOnly": true` says these landblocks exist **only** as instances. Then:
+`"instanceOnly": true` says the island's landblocks exist **only** as instances. The ring does not: it is only a margin, and stays in the persistent world as it was. Then, for the island's landblocks:
 
-- the persistent world refuses to load them (`LandblockManager.GetLandblock` returns null and logs `[INSTANCE] Something asked the persistent world for landblock ...` once for each landblock), they are not loaded as neighbours of the landblocks next to them, and nobody can walk into them from there;
+- the persistent world refuses to load them (`LandblockManager.GetLandblock` returns null and logs `[INSTANCE] Something asked the persistent world for landblock ...` once for each landblock; physics, which asks about them whenever something comes near, just gets nothing), they are not loaded as neighbours of the landblocks next to them, and nobody can walk into them from there;
 - `Player.Teleport` to them without an instance is refused ("That place is no longer there.");
 - `/tele` and the advocate map teleport say that the landblock only exists as an instance.
 
@@ -162,7 +162,7 @@ Off by default. Set the server property `capstone_instanced_dungeons` to a comma
 - Not run against a live server yet (there is no database in the environment it was written in): the capstone path, `/instance`, and the real player flows (teleport, login, logout, death). The pieces below them (physics, landblocks, ids, teardown) are tested, both with unit tests and against the real DATs.
 - Portal storm zones (`ResonanceZoneService`) group players by landblock number and never look at the instance, so a storm in a landblock also reaches the players in instances of it. Decide whether that is wanted.
 - Only `ActivationTarget` is translated. The world database was checked for weenies that name a static object by its guid (`SELECT object_Id, type, value FROM weenie_properties_i_i_d WHERE value BETWEEN 1879048192 AND 2147483647`): 38 weenies, all `ActivationTarget`, pointing at 35 statics in 18 landblocks (none of them in a capstone dungeon), and nothing else. A guid written down anywhere else (a new property, an emote) would not be translated. The links between statics (`landblock_instance_link`) are not affected, because they are made as references between the objects.
-- Admin `Create*` commands and the old `Game.cs` chess pieces don't copy the instance to what they make. The `[INSTANCE]` warning in the log says when something is spawned without one.
+- The old `Game.cs` chess pieces don't copy the instance to what they make. The `[INSTANCE]` warning in the log says when something is spawned without one.
 - Spawns that would be placed right at the outer edge of a footprint fail, because the edge is solid (see the ring).
 - Islands are made from a file, and there is nothing in the game yet that sends a player into one.
 

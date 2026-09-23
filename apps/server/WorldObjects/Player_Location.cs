@@ -35,7 +35,7 @@ partial class Player
         if (position != null)
         {
             var teleportDest = new Position(position);
-            AdjustDungeon(teleportDest);
+            AdjustDungeonForTeleport(teleportDest, InstanceId);
 
             Teleport(teleportDest);
             return true;

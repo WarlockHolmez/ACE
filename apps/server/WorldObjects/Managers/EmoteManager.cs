@@ -1689,7 +1689,7 @@ public class EmoteManager
                     }
 
                     // get new cell
-                    newPos.LandblockId = new LandblockId(PositionExtensions.GetCell(newPos));
+                    newPos.LandblockId = new LandblockId(PositionExtensions.GetCell(newPos, creature.InstanceId));
 
                     // TODO: handle delay for this?
                     creature.MoveTo(newPos, creature.GetRunRate(), true, null, emote.Extent);
@@ -1779,7 +1779,7 @@ public class EmoteManager
                     //if (emote.ObjCellId != null)
                     //newPos.LandblockId = new LandblockId(emote.ObjCellId.Value);
 
-                    newPos.LandblockId = new LandblockId(PositionExtensions.GetCell(newPos));
+                    newPos.LandblockId = new LandblockId(PositionExtensions.GetCell(newPos, creature.InstanceId));
 
                     var walkRunThreshold = emote.Amount;
                     var runSpeed = emote.Shade ?? creature.GetRunRate();
@@ -2392,7 +2392,7 @@ public class EmoteManager
                                     emote.AnglesW.Value
                                 );
 
-                                WorldObject.AdjustDungeon(destination);
+                                WorldObject.AdjustDungeonForTeleport(destination, player.InstanceId);
                                 WorldManager.ThreadSafeTeleport(player, destination);
                                 break;
                             case > 0:
@@ -2408,7 +2408,7 @@ public class EmoteManager
                                     emote.AnglesW.Value
                                 );
 
-                                WorldObject.AdjustDungeon(destination);
+                                WorldObject.AdjustDungeonForTeleport(destination, player.InstanceId);
                                 WorldManager.ThreadSafeTeleport(player, destination);
                                 break;
                             }
@@ -2427,9 +2427,11 @@ public class EmoteManager
                                     emote.AnglesZ.Value,
                                     emote.AnglesW.Value
                                 );
-                                relativeDestination.LandblockId = new LandblockId(relativeDestination.GetCell());
+                                relativeDestination.LandblockId = new LandblockId(
+                                    relativeDestination.GetCell(WorldObject.InstanceId)
+                                );
 
-                                WorldObject.AdjustDungeon(relativeDestination);
+                                WorldObject.AdjustDungeonForTeleport(relativeDestination, player.InstanceId);
                                 WorldManager.ThreadSafeTeleport(player, relativeDestination);
                                 break;
                             }

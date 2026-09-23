@@ -39,6 +39,7 @@ public class InstanceTemplate
 
     /// <summary>
     /// True if the landblocks only exist as instances: there is nothing at these coordinates in the persistent world.
+    /// That is the footprint without its boundary (see InstanceOnlyLandblocks): the boundary is a margin, and stays in the persistent world.
     /// Anything that ends up there is a mistake, so a player who is saved there is moved out when they log in,
     /// and the persistent world refuses to load these landblocks.
     /// </summary>
@@ -100,6 +101,21 @@ public class InstanceTemplate
     public bool Contains(LandblockId landblockId)
     {
         return footprintSet.Contains(landblockId);
+    }
+
+    /// <summary>
+    /// The landblocks that stop existing in the persistent world when this template is instance only: the footprint without its boundary.
+    /// The boundary is only a margin that is loaded around the place, so it stays in the persistent world. Empty if the template is not instance only.
+    /// </summary>
+    public IEnumerable<LandblockId> InstanceOnlyLandblocks =>
+        InstanceOnly ? footprintSet.Where(l => !boundarySet.Contains(l)) : Enumerable.Empty<LandblockId>();
+
+    /// <summary>
+    /// Whether this template makes a landblock stop existing in the persistent world
+    /// </summary>
+    public bool IsInstanceOnlyLandblock(LandblockId landblockId)
+    {
+        return InstanceOnly && footprintSet.Contains(landblockId) && !boundarySet.Contains(landblockId);
     }
 
     public bool HasBoundary => boundarySet.Count > 0;

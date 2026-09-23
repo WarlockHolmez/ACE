@@ -913,6 +913,20 @@ public abstract partial class WorldObject : IActor
         return true;
     }
 
+    /// <summary>
+    /// AdjustDungeon for a teleport of something that is in fromInstance: the destination is adjusted in the instance
+    /// the teleport will arrive in (see InstanceManager.ResolveDestinationInstance), not always in the persistent world.
+    /// </summary>
+    public static void AdjustDungeonForTeleport(Position pos, uint fromInstance)
+    {
+        if (pos == null)
+        {
+            return;
+        }
+
+        AdjustDungeon(pos, InstanceManager.ResolveDestinationInstance(fromInstance, pos));
+    }
+
     // todo: This should really be an extension method for Position, or a static method within Position or even AdjustPos
     public static void AdjustDungeon(Position pos, uint instance = LScape.PersistentInstance)
     {

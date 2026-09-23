@@ -45,6 +45,13 @@ partial class Player
             return;
         }
 
+        // Someone in another instance is not here, however close their coordinates are
+        if (tradePartner.InstanceId != InstanceId)
+        {
+            Session.Network.EnqueueSend(new GameEventWeenieError(Session, WeenieError.TradeMaxDistanceExceeded));
+            return;
+        }
+
         //Check to see if potential trading partner is an Olthoi player
         if (initiator && tradePartner.IsOlthoiPlayer)
         {

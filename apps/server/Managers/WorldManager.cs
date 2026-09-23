@@ -301,7 +301,10 @@ public static class WorldManager
             session.Player.IsOlthoiPlayer && character.TotalLogins >= 1 && session.Player.LoginAtLifestone;
         if (olthoiPlayerReturnedToLifestone)
         {
-            session.Player.Location = new Position(session.Player.Sanctuary);
+            // their lifestone can be in a landblock that only exists as an instance
+            session.Player.Location = new Position(
+                InstanceManager.FirstPersistentPosition(session.Player.Sanctuary, session.Player.Instantiation)
+            );
         }
 
         session.Player.PlayerEnterWorld();
@@ -310,7 +313,8 @@ public static class WorldManager
         if (!success)
         {
             // send to lifestone, or fallback location
-            var fixLoc = session.Player.Sanctuary ?? new Position(DefaultFallbackPosition);
+            // only a place the persistent world will let them into: the sanctuary can be in a landblock that only exists as an instance
+            var fixLoc = InstanceManager.FirstPersistentPosition(session.Player.Sanctuary);
 
             _log.Error(
                 $"WorldManager.DoPlayerEnterWorld: failed to spawn {session.Player.Name}, relocating to {fixLoc.ToLOCString()}"

@@ -295,6 +295,11 @@
     <Copy SourceFiles="instances.json" DestinationFolder="$(OutDir)" Condition="!Exists('$(OutDir)instances.json')" />
   </Target>
 
+  <!-- dotnet publish (and so the Docker image) only copies publish items, so the same is done for the publish folder -->
+  <Target Name="PublishInstancesJsonOnce" AfterTargets="Publish">
+    <Copy SourceFiles="instances.json" DestinationFolder="$(PublishDir)" Condition="!Exists('$(PublishDir)instances.json')" />
+  </Target>
+
   <ItemGroup>
     <Content Include="recipe_use_emote_whitelist.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

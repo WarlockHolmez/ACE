@@ -44,6 +44,36 @@ partial class Program
         Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")
     );
 
+    /// <summary>
+    /// instances.json is next to the server. In a container it is kept in the Config volume instead, the way Config.js is,
+    /// so that it can be edited and outlives the image: the one that comes with the server is put there when there is none yet.
+    /// </summary>
+    private static string GetInstancesJsonPath(string exeLocation, string containerConfigDirectory)
+    {
+        var path = Path.Combine(exeLocation, "instances.json");
+
+        if (!IsRunningInContainer)
+        {
+            return path;
+        }
+
+        var containerPath = Path.Combine(containerConfigDirectory, "instances.json");
+
+        try
+        {
+            if (!File.Exists(containerPath) && File.Exists(path) && Directory.Exists(containerConfigDirectory))
+            {
+                File.Copy(path, containerPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warning(ex, "Could not copy {Path} to {ContainerPath}", path, containerPath);
+        }
+
+        return File.Exists(containerPath) ? containerPath : path;
+    }
+
     public static async Task Main(string[] args)
     {
         var consoleTitle = $"ACEmulator - v{ServerBuildInfo.FullVersion}";
@@ -283,7 +313,7 @@ partial class Program
 
         // before the world opens: landblocks that only exist as instances have to be known before anything can load them
         _log.Information("Loading instance templates (instances.json)...");
-        InstanceManager.LoadTemplates();
+        InstanceManager.LoadTemplates(GetInstancesJsonPath(exeLocation, containerConfigDirectory));
 
         _log.Information("Initializing GuidManager...");
         GuidManager.Initialize();

@@ -100,12 +100,16 @@ partial class Player
 
             // instead, we get all of the players in the lifestone landblock + adjacent landblocks,
             // and possibly limit that to some radius around the landblock?
-            // Null when the lifestone's landblock can't be loaded in the persistent world any more (for example,
-            // it has become instance-only since this player bound there): nobody there to broadcast to.
-            var lifestoneBlock = LandblockManager.GetLandblock(
-                new LandblockId(Sanctuary.Landblock << 16 | 0xFFFF),
-                true
-            );
+            // In the instance the player will revive in: the one they are in, if the lifestone is part of it (the lifestone of an island).
+            // Null if the lifestone is in a landblock that only exists as an instance, and the player is not in one: nobody there to broadcast to.
+            var lifestoneBlockId = new LandblockId(Sanctuary.Landblock << 16 | 0xFFFF);
+            var lifestoneInstance = InstanceManager.ResolveDestinationInstance(InstanceId, Sanctuary);
+
+            var lifestoneBlock =
+                lifestoneInstance != Landblock.PersistentInstance
+                    ? LandblockManager.TryGetLandblock(lifestoneBlockId, lifestoneInstance)
+                : InstanceManager.IsInstanceOnly(lifestoneBlockId) ? null
+                : LandblockManager.GetLandblock(lifestoneBlockId, true);
 
             // We enqueue the work onto the target landblock to ensure thread-safety. It's highly likely the lifestoneBlock is far away, and part of a different landblock group (and thus different thread).
             lifestoneBlock?.EnqueueAction(

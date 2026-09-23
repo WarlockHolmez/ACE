@@ -171,7 +171,7 @@ public static class InstanceTemplateConfig
         }
 
         // Where players are sent when an island ends has to be a place they can go, so it can't be in a landblock that only exists as an instance
-        var instanceOnly = new HashSet<LandblockId>(templates.Where(t => t.InstanceOnly).SelectMany(t => t.Footprint));
+        var instanceOnly = new HashSet<LandblockId>(templates.SelectMany(t => t.InstanceOnlyLandblocks));
 
         templates.RemoveAll(template =>
         {

@@ -543,4 +543,83 @@ public class InstanceManagerTests
         Assert.IsTrue(secondCreated, "a new one is made instead of going into one that is about to be deleted");
         Assert.AreNotEqual(first.Id, second.Id);
     }
+
+    [TestMethod]
+    public void InstanceManager_TheRingOfAnInstanceOnlyTemplateStaysInThePersistentWorld()
+    {
+        var island = new LandblockId(0x6A6AFFFF);
+        var ring = new LandblockId(0x6B6AFFFF);
+
+        var template = new InstanceTemplate(
+            "test-" + Guid.NewGuid(),
+            new[] { island, ring },
+            At(0x6A6A0001),
+            At(0xA9B40019),
+            instanceOnly: true,
+            boundary: new[] { ring }
+        );
+
+        Assert.IsTrue(template.IsInstanceOnlyLandblock(island));
+        Assert.IsFalse(template.IsInstanceOnlyLandblock(ring), "the ring is only a margin");
+        CollectionAssert.AreEquivalent(new[] { island }, template.InstanceOnlyLandblocks.ToList());
+
+        InstanceManager.RegisterTemplate(template);
+
+        Assert.IsTrue(InstanceManager.IsInstanceOnly(island));
+        Assert.IsFalse(InstanceManager.IsInstanceOnly(ring));
+        Assert.IsNull(InstanceManager.GetInstanceOnlyTemplate(ring));
+        Assert.IsTrue(InstanceManager.CanEnter(Landblock.PersistentInstance, ring));
+    }
+
+    [TestMethod]
+    public void InstanceManager_APlayerIsNeverSentToALandblockThatOnlyExistsAsAnInstanceWhenTheyLogIn()
+    {
+        var island = new LandblockId(0x6C6CFFFF);
+        InstanceManager.RegisterTemplate(NewTemplate(true, island));
+
+        // bound to the island's lifestone while they were on it
+        var lifestoneOnTheIsland = At(0x6C6C0001);
+        var whereTheyStarted = At(0xA9B40019);
+
+        Assert.AreSame(
+            whereTheyStarted,
+            InstanceManager.FirstPersistentPosition(lifestoneOnTheIsland, null, whereTheyStarted)
+        );
+
+        var nowhereElse = InstanceManager.FirstPersistentPosition(lifestoneOnTheIsland, null);
+        Assert.AreEqual(WorldManager.DefaultFallbackPosition.Cell, nowhereElse.Cell, "the ultimate fallback");
+        Assert.AreNotSame(
+            WorldManager.DefaultFallbackPosition,
+            nowhereElse,
+            "a copy, so nobody changes the fallback itself"
+        );
+    }
+
+    [TestMethod]
+    public void InstanceManager_AnInstanceThatIsHandedOutIsNotDeletedBeforeThePlayerArrives()
+    {
+        var template = NewTemplate();
+        var owner = new object();
+        var timeout = TimeSpan.FromMinutes(15);
+
+        var first = InstanceManager.FindOrRegister(template, owner, out var created);
+        Assert.IsTrue(created);
+
+        // nearly timed out, and then someone else of the same owner comes through the portal
+        now = now.AddMinutes(14);
+        var again = InstanceManager.FindOrRegister(template, owner, out created);
+
+        Assert.IsFalse(created);
+        Assert.AreSame(first, again);
+
+        // the teleport takes a moment: the instance must still be there when it happens
+        now = now.AddMinutes(2);
+        InstanceManager.Tick(now, timeout);
+        Assert.IsNotNull(InstanceManager.Get(first.Id));
+
+        // and if nobody ever arrives, it still ends
+        now = now.AddMinutes(14);
+        InstanceManager.Tick(now, timeout);
+        Assert.IsNull(InstanceManager.Get(first.Id));
+    }
 }
