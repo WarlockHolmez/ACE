@@ -240,6 +240,7 @@
 
   <ItemGroup>
     <PackageReference Include="Discord.Net" Version="3.16.0" />
+    <PackageReference Include="DotRecast.Recast.Toolset" Version="2024.3.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />

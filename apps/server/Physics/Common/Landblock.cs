@@ -248,8 +248,25 @@ public class Landblock : LandblockStruct
     {
         //Console.WriteLine("Loading scenery for " + ID.ToString("X8"));
 
-        // ported from Scenery
         Scenery = new List<PhysicsObj>();
+
+        foreach (var (physicsObj, cell, frame, scale) in make_land_scenes())
+        {
+            physicsObj.add_obj_to_cell(cell, frame);
+            physicsObj.SetScaleStatic(scale);
+            Scenery.Add(physicsObj);
+        }
+        //Console.WriteLine("Landblock " + ID.ToString("X8") + " scenery count: " + Scenery.Count);
+    }
+
+    /// <summary>
+    /// Builds the terrain-generated scenery (trees, rocks, bushes) of this landblock, placed but not yet added to its cell
+    /// and not yet scaled. get_land_scenes() adds each one to its cell; the outdoor navmesh (Pathfinding.OutdoorGeometry)
+    /// reads their collision shapes without touching any cell.
+    /// </summary>
+    public IEnumerable<(PhysicsObj obj, LandCell cell, AFrame frame, float scale)> make_land_scenes()
+    {
+        // ported from Scenery
 
         // get the landblock cell offsets
         var blockX = (ID >> 24) * 8;
@@ -365,14 +382,11 @@ public class Landblock : LandblockStruct
                         continue;
                     }
 
-                    physicsObj.add_obj_to_cell(cell, pos.Frame);
                     var scale = ObjectDesc.ScaleObj(obj, globalCellX, globalCellY, j);
-                    physicsObj.SetScaleStatic(scale);
-                    Scenery.Add(physicsObj);
+                    yield return (physicsObj, cell, pos.Frame, scale);
                 }
             }
         }
-        //Console.WriteLine("Landblock " + ID.ToString("X8") + " scenery count: " + Scenery.Count);
     }
 
     public static float RoadWidth = 5.0f;

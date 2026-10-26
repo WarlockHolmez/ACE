@@ -798,6 +798,7 @@ public static class DefaultPropertyManager
         ("suicide_instant_death", new Property<bool>(false, "if enabled, @die command kills player instantly. defaults to disabled, as in retail")),
         ("taboo_table", new Property<bool>(true, "if enabled, taboo table restricts player names during character creation")),
         ("tailoring_intermediate_uieffects", new Property<bool>(false, "If true, tailoring intermediate icons retain the magical/elemental highlight of the original item")),
+        ("town_event_navmesh", new Property<bool>(false, "(non-retail function) If enabled, a town event guard or attacker whose chase is stuck on a building, wall or tree runs a route round it on the outdoor navmesh before blipping next to its target. A town's navmesh tiles are built in the background the first time a chase there needs them (about a second each), and cached on disk under Pathfinding/Meshes/Outdoors")),
         ("trajectory_alt_solver", new Property<bool>(false, "use the alternate trajectory solver for missiles and spell projectiles")),
         ("universal_masteries", new Property<bool>(true, "if TRUE, matches end of retail masteries - players wielding almost any weapon get +5 DR, except if the weapon \"seems tough to master\". " +
                                                          "" + "if FALSE, players start with mastery of 1 melee and 1 ranged weapon type based on heritage, and can later re-select these 2 masteries")),
