@@ -1,16 +1,22 @@
 using System.Collections.Generic;
 using ACE.Entity.Enum;
+using ACE.Entity.Enum.Properties;
 
 namespace ACE.Server.WorldObjects;
 
 partial class Creature
 {
     /// <summary>
-    /// Patrols should only acquire monster targets (not players).
+    /// Patrols only acquire monster targets (not players) unless PatrolTargetsPlayers is set.
     /// This is intentionally simple: visible + attackable + is monster.
     /// </summary>
     private bool PatrolFindNextTarget()
     {
+        if (GetProperty(PropertyBool.PatrolTargetsPlayers) == true)
+        {
+            return PatrolFindHostileTarget();
+        }
+
         var monsters = new List<Creature>();
 
         foreach (var c in PhysicsObj.ObjMaint.GetVisibleTargetsValuesOfTypeCreature())
@@ -65,6 +71,33 @@ partial class Creature
 
         // Nearest distance is squared; compare to VisualAwarenessRangeSq
         if (nearest[0].Distance > VisualAwarenessRangeSq)
+        {
+            PatrolDropTarget();
+            return false;
+        }
+
+        AttackTarget = nearest[0].Target;
+        return true;
+    }
+
+    /// <summary>
+    /// PatrolTargetsPlayers: a hostile patrol (e.g. an encampment's war party) picks targets the way any monster does -
+    /// GetAttackTargets() covers attackable, stealth, vanish, factions and the chase leash (the current target within
+    /// MaxChaseRange, a new one within VisualAwarenessRange). It keeps its current target while that stays valid,
+    /// otherwise takes the nearest, and drops back to its route when nothing is left.
+    /// </summary>
+    private bool PatrolFindHostileTarget()
+    {
+        var targets = GetAttackTargets();
+
+        if (AttackTarget is Creature current && !current.IsDead && targets.Contains(current))
+        {
+            return true;
+        }
+
+        var nearest = BuildTargetDistance(targets, true);
+
+        if (nearest.Count == 0)
         {
             PatrolDropTarget();
             return false;

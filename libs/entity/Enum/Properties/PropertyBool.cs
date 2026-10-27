@@ -371,6 +371,13 @@ public enum PropertyBool : ushort
     /// </summary>
     ArenaSpectating = 186,
 
+    /// <summary>
+    /// A patrolling creature (PatrolEnabled) attacks players and their combat pets like any other monster, instead of
+    /// the default patrol targeting, which only ever picks monsters (the town guards). It walks its route, chases
+    /// whatever it sees within VisualAwarenessRange, gives up past MaxChaseRange and goes back to its route.
+    /// </summary>
+    PatrolTargetsPlayers = 187,
+
     /* custom */
     LinkedPortalOneSummon = 9001,
     LinkedPortalTwoSummon = 9002,
