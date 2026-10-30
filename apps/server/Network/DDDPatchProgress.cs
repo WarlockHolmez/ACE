@@ -44,6 +44,8 @@ public class DDDPatchProgress
 
     public bool ExpectedBytesReachedEarlyLogged { get; set; }
 
+    public bool StallLogged { get; set; }
+
     public DDDPatchProgress(
         uint expectedIterations,
         uint expectedBytes,

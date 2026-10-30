@@ -228,7 +228,11 @@ public static class DDDHandler
                 $"[DDD] client {session.Account} informed with BeginDDD payload:\n Total Missing Iterations: {totalMissingIterations} | Expected Data Transfer Size: {totalFileSize / 1024:N0} kB | Files: {patch.TotalExpectedFiles:N0}\n {missingIterationsSummary}"
             );
 
-            DDDManager.RecordPatchStart(session.Account, missingIterationsSummary);
+            DDDManager.RecordPatchStart(session.Account, missingIterations);
+
+            _log.Debug(
+                $"[DDD] client {session.Account} BeginDDD files:\n{DDDManager.DescribeFiles(missingIterations, int.MaxValue)}"
+            );
 
             void QueuePatchFile(uint fileId, DatDatabaseType datDatabaseType)
             {

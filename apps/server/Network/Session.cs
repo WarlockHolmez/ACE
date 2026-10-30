@@ -504,6 +504,8 @@ public class Session
             return;
         }
 
+        CheckDDDPatchStalled();
+
         if (dddDataQueueRateLimiter.GetSecondsToWaitBeforeNextEvent() > 0)
         {
             return;
@@ -569,6 +571,37 @@ public class Session
         }
     }
 
+    private static readonly TimeSpan DDDPatchStallTime = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Warns once if every file has been sent but the client still hasn't ended patching, which is what a patcher stuck short of 100% looks like
+    /// </summary>
+    private void CheckDDDPatchStalled()
+    {
+        var patch = DDDPatch;
+
+        if (
+            patch is not { IsComplete: false, StallLogged: false }
+            || patch.LastFileSent == null
+            || DateTime.UtcNow - patch.LastFileSentTime < DDDPatchStallTime
+            || DDDQueueCount > 0
+        )
+        {
+            return;
+        }
+
+        patch.StallLogged = true;
+
+        _log.Warning(
+            "[DDD] client {Account} has been sent every queued file but has not ended patching after {Seconds:N0}s. The client likely failed to receive or apply some of the data: {Summary}",
+            Account,
+            DDDPatchStallTime.TotalSeconds,
+            patch.Summary()
+        );
+
+        DDDManager.RecordPatchOutcome(Account, $"client stopped patching after receiving everything: {patch.Summary()}");
+    }
+
     private void LogDDDPatchProgress(DDDPatchProgress patch)
     {
         var remainingFiles = DDDQueueCount;
@@ -622,7 +655,14 @@ public class Session
                 DDDQueueCount
             );
 
-            DDDManager.RecordPatchOutcome(Account, $"disconnected mid-patch{reason}: {summary}");
+            if (patch.StallLogged)
+            {
+                DDDManager.RecordPatchOutcome(Account, $"disconnected{reason}", append: true);
+            }
+            else
+            {
+                DDDManager.RecordPatchOutcome(Account, $"disconnected mid-patch{reason}: {summary}");
+            }
         }
         else if (Player?.FirstEnterWorldDone != true)
         {

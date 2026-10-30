@@ -525,6 +525,7 @@ public static class DDDManager
         public DateTime FirstAttempt;
         public DateTime LastAttempt;
         public string LastOutcome = "unknown";
+        public HashSet<(DatDatabaseType DatDatabaseType, uint Iteration)> LastMissing = new();
     }
 
     /// <summary>
@@ -537,8 +538,12 @@ public static class DDDManager
 
     /// <summary>
     /// Records that a patch is starting for this account, and warns if it was already patched recently.
+    /// Iterations that were sent last attempt and are still missing are logged file by file, since something in them is not being applied.
     /// </summary>
-    public static void RecordPatchStart(string account, string missingIterationsSummary)
+    public static void RecordPatchStart(
+        string account,
+        Dictionary<DatDatabaseType, Dictionary<uint, List<uint>>> missingIterations
+    )
     {
         if (account == null)
         {
@@ -566,16 +571,44 @@ public static class DDDManager
             }
         );
 
-        if (history.Attempts > 1)
+        var missing = missingIterations
+            .SelectMany(dat => dat.Value.Keys.Select(iteration => (dat.Key, iteration)))
+            .ToHashSet();
+
+        lock (history)
         {
-            _log.Warning(
-                "[DDD] client {Account} is being patched again, attempt {Attempts} since {FirstAttempt:u}. Previous attempt: {LastOutcome}. Still missing: {MissingIterations}",
-                account,
-                history.Attempts,
-                history.FirstAttempt,
-                history.LastOutcome,
-                missingIterationsSummary
-            );
+            if (history.Attempts > 1)
+            {
+                var stuck = missingIterations
+                    .Select(dat => (
+                        dat.Key,
+                        Iterations: dat.Value.Where(i => history.LastMissing.Contains((dat.Key, i.Key)))
+                            .ToDictionary(i => i.Key, i => i.Value)
+                    ))
+                    .Where(dat => dat.Iterations.Count > 0)
+                    .ToDictionary(dat => dat.Key, dat => dat.Iterations);
+
+                _log.Warning(
+                    "[DDD] client {Account} is being patched again, attempt {Attempts} since {FirstAttempt:u}. Previous attempt: {LastOutcome}. Still missing: {MissingIterations}",
+                    account,
+                    history.Attempts,
+                    history.FirstAttempt,
+                    history.LastOutcome,
+                    DescribeMissingIterations(missingIterations)
+                );
+
+                if (stuck.Count > 0)
+                {
+                    _log.Warning(
+                        "[DDD] client {Account} was sent these iterations last attempt but did not apply them: {StuckIterations}. Files:\n{Files}",
+                        account,
+                        DescribeMissingIterations(stuck),
+                        DescribeFiles(stuck)
+                    );
+                }
+            }
+
+            history.LastMissing = missing;
         }
 
         PrunePatchHistory(now);
@@ -617,6 +650,75 @@ public static class DDDManager
                 patchHistory.TryRemove(entry.Key, out _);
             }
         }
+    }
+
+    /// <summary>
+    /// Lists each file in the given iterations with its type and the size it is sent at, one per line, up to maxFiles
+    /// </summary>
+    public static string DescribeFiles(
+        Dictionary<DatDatabaseType, Dictionary<uint, List<uint>>> iterations,
+        int maxFiles = 250
+    )
+    {
+        var lines = new List<string>();
+        var total = 0;
+
+        foreach (var dat in iterations)
+        {
+            foreach (var iteration in dat.Value.OrderBy(i => i.Key))
+            {
+                foreach (var fileId in iteration.Value.OrderBy(f => f))
+                {
+                    total++;
+
+                    if (lines.Count >= maxFiles)
+                    {
+                        continue;
+                    }
+
+                    var line = $"  {dat.Key} iteration {iteration.Key} 0x{fileId:X8}";
+
+                    var datDatabase = GetDatDatabase(dat.Key);
+                    if (datDatabase != null && datDatabase.AllFiles.TryGetValue(fileId, out var datFile))
+                    {
+                        line += $" {datFile.GetFileType(dat.Key)?.ToString() ?? "UnknownType"}";
+                    }
+                    else
+                    {
+                        line += " (not in server DAT)";
+                    }
+
+                    if (DatFileSizes.TryGetValue(dat.Key, out var sizes) && sizes.TryGetValue(fileId, out var size))
+                    {
+                        line +=
+                            size.CompressedFileSize > 0
+                                ? $" {size.UncompressedFileSize:N0} bytes, sent compressed as {size.CompressedFileSize + 4:N0}"
+                                : $" {size.UncompressedFileSize:N0} bytes, sent uncompressed";
+                    }
+
+                    lines.Add(line);
+                }
+            }
+        }
+
+        if (total > lines.Count)
+        {
+            lines.Add($"  ... and {total - lines.Count:N0} more files");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static DatDatabase GetDatDatabase(DatDatabaseType datDatabaseType)
+    {
+        return datDatabaseType switch
+        {
+            DatDatabaseType.Portal => DatManager.PortalDat,
+            DatDatabaseType.Cell => DatManager.CellDat,
+            DatDatabaseType.Language => DatManager.LanguageDat,
+            DatDatabaseType.HighRes => DatManager.HighResDat,
+            _ => null
+        };
     }
 
     /// <summary>
